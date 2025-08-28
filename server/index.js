@@ -5,15 +5,9 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import userRouter from './routes/userRoutes.js';
 import groupRouter from './routes/groupRoutes.js';
-// import postRouter from './routes/postRoutes.js';
-// import articleRouter from './routes/articleRoutes.js';
-// import emailRouter from './routes/nodemailerRouter.js';
-// import presignedUrlRouter from './routes/presignedUrlRoutes.js';
-// import announcementRouter from './routes/announcementRoutes.js';
-// import feedbackRouter from './routes/feedbackRoutes.js';
-// import reportRouter from './routes/reportRoutes.js';
-// import formRouter from './routes/formRoutes.js';
-// import formSubmissionRouter from './routes/formSubmissionRoutes.js';
+import announcementRouter from './routes/announcementRoutes.js';
+import constitutionRouter from './routes/constitutionRoutes.js';
+import paymentRouter from './routes/paymentRoutes.js';
 
 dotenv.config();
 
@@ -43,15 +37,9 @@ app.options('*', cors(corsOptions)); // Preflight request handling
 // Routes
 app.use('/', userRouter);
 app.use('/', groupRouter);
-// app.use('/', articleRouter);
-// app.use('/', postRouter);
-// app.use('/', emailRouter);
-// app.use('/', announcementRouter);
-// app.use('/', reportRouter);
-// app.use('/', formRouter);
-// app.use('/', feedbackRouter);
-// app.use('/', presignedUrlRouter);
-// app.use('/', formSubmissionRouter);
+app.use('/', announcementRouter);
+app.use('/', constitutionRouter);
+app.use('/', paymentRouter);
 
 const PORT = process.env.PORT || 3002;
 app.get('/hello', (req, res) => { res.send('Hello') });

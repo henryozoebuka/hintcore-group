@@ -1,36 +1,85 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { useSelector } from "react-redux";
 import styles from "../../styles/styles";
+import privateAxios from "../../utils/axios/privateAxios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Notification from '../../components/Notification/Notification';
+import Footer from "../../components/Footer/Footer";
 
-const ManagmentDashboard = ({ navigation }) => {
-  const isDarkMode = useSelector((state) => state.colors.isDarkMode);
-  const COLORS = isDarkMode ? styles.DARKCOLORS : styles.LIGHTCOLORS;
+const ManagementDashboard = ({ navigation }) => {
+  const { colors } = useSelector((state) => state.colors);
+  const [notification, setNotification] = useState({ visible: false, type: '', message: '' });
+  const [groupId, setGroupId] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+
+  // 1️⃣ Fetch group ID once
+  useEffect(() => {
+    const getGroupId = async () => {
+      const storedGroupId = await AsyncStorage.getItem('currentGroupId');
+      if (storedGroupId) setGroupId(storedGroupId);
+    };
+    getGroupId();
+  }, []);
+
+  // 2️⃣ Fetch group join code when groupId is available
+  useEffect(() => {
+    if (!groupId) return;
+
+    const fetchGroupInfo = async () => {
+      try {
+        const response = await privateAxios.get(`/private/fetch-group-join-code/${groupId}`);
+        if (response.status === 200) {
+          setJoinCode(response.data.joinCode);
+        }
+      } catch (error) {
+        const errMsg = error?.response?.data?.message || 'No group information found';
+        setTimeout(() => {
+          setNotification({
+            visible: true,
+            type: 'error',
+            message: errMsg,
+          });
+        }, 3000);
+        console.error(error);
+      }
+    };
+
+    fetchGroupInfo();
+  }, [groupId]);
+
 
   return (
-    <View style={[styles.SETTINGS_STYLES.container, { backgroundColor: COLORS.background }]}>
-
+    <View style={{flex: 1}}>
+    <View style={[styles.SETTINGS_STYLES.container, { backgroundColor: colors.background }]}>
+      <Notification visible={notification.visible} type={notification.type} message={notification.message} />
       <ScrollView showsVerticalScrollIndicator={false}>
-        <Text style={[styles.SETTINGS_STYLES.header, { color: COLORS.text }]}>
+        <View style={{ marginVertical: 20 }}>
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: 'bold' }}>Group Join Code:</Text>
+          <Text style={{ color: colors.primary, fontSize: 24 }}>{joinCode}</Text>
+        </View>
+        <Text style={[styles.SETTINGS_STYLES.header, { color: colors.text }]}>
           Quick Actions
         </Text>
 
-          <Pressable onPress={() => navigation.navigate('manage-announcements')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: COLORS.inputBackground, borderWidth: 1, borderColor: COLORS.border }} >
-            <Text style={{ fontSize: 18, color: COLORS.text }}>Manage Announcements</Text>
-          </Pressable>
-          <Pressable onPress={() => navigation.navigate('manage-users')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: COLORS.inputBackground, borderWidth: 1, borderColor: COLORS.border }} >
-            <Text style={{ fontSize: 18, color: COLORS.text }}>Manage Users</Text>
-          </Pressable>
-          <Pressable onPress={() => navigation.navigate('manage-events')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: COLORS.inputBackground, borderWidth: 1, borderColor: COLORS.border }} >
-            <Text style={{ fontSize: 18, color: COLORS.text }}>Manage Events</Text>
-          </Pressable>
-          <Pressable onPress={() => navigation.navigate('manage-announcements')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: COLORS.inputBackground, borderWidth: 1, borderColor: COLORS.border }} >
-            <Text style={{ fontSize: 18, color: COLORS.text }}>Manage Constitution</Text>
-          </Pressable>
-        
+        <Pressable onPress={() => navigation.navigate('manage-announcements')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
+          <Text style={{ fontSize: 18, color: colors.text }}>Manage Announcements</Text>
+        </Pressable>
+        <Pressable onPress={() => navigation.navigate('manage-constitutions')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
+          <Text style={{ fontSize: 18, color: colors.text }}>Manage Constitution</Text>
+        </Pressable>
+        <Pressable onPress={() => navigation.navigate('manage-payments')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
+          <Text style={{ fontSize: 18, color: colors.text }}>Manage Payments</Text>
+        </Pressable>
+        <Pressable onPress={() => navigation.navigate('manage-users')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
+          <Text style={{ fontSize: 18, color: colors.text }}>Manage Users</Text>
+        </Pressable>
+
       </ScrollView>
+    </View>
+    <Footer />
     </View>
   );
 };
 
-export default ManagmentDashboard;
+export default ManagementDashboard;

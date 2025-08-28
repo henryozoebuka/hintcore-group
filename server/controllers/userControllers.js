@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
@@ -6,6 +7,7 @@ import dotenv from 'dotenv';
 import UserModel from "../models/userModel.js";
 import UserOTPVerificationModel from "../models/userOTPVerificationModel.js";
 import GroupModel from "../models/groupModel.js";
+import AnnouncementModel from "../models/announcementModel.js";
 
 dotenv.config();
 
@@ -29,7 +31,6 @@ const getMailOptions = (email, otp) => ({
   subject: "Hintcore Group Verification Code",
   html: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
 });
-
 
 export const confirmOTP = async (req, res) => {
   const { userId, otp } = req.body;
@@ -156,7 +157,7 @@ export const login = async (req, res) => {
     const token = jwt.sign(
       {
         id: user._id,
-        groupId: currentGroup._id,
+        currentGroupId: currentGroup._id,
         permissions: userPermissions
       },
       process.env.JWT_PASSWORD,
@@ -182,7 +183,6 @@ export const login = async (req, res) => {
     res.status(500).json({ message: 'Error occurred at the backend.' });
   }
 };
-
 
 export const userProfile = async (req, res) => {
   try {
@@ -235,26 +235,161 @@ export const userProfile = async (req, res) => {
   }
 };
 
-export const userDashboard = async (req, res) => {
+export const uuserProfile = async (req, res) => {
   try {
-    return res.status(200).json({message: "It got here"})
+    // 1️⃣ Get userId from auth middleware or query param
+    const { id } = req.params; // Or req.user if using JWT auth
+
+    if (!id) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+
+    // 2️⃣ Fetch user and populate groups
+    const user = await UserModel.findById(id)
+      .populate({
+        path: 'groups.group',
+        select: 'name description imageUrl', // Group fields to show
+      })
+      .select('-password -OTPNumberOfAttempts'); // Hide sensitive fields
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // 3️⃣ Return profile
+    res.status(200).json({
+      data: {
+        _id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        bio: user.bio,
+        gender: user.gender,
+        imageUrl: user.imageUrl,
+        verified: user.verified,
+        groups: user.groups.map(g => ({
+          _id: g.group._id,
+          name: g.group.name,
+          description: g.group.description,
+          imageUrl: g.group.imageUrl,
+          status: g.status,
+          permissions: g.permissions
+        })),
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+export const updateUserProfile = async (req, res) => {
+  try {
+    const { id: userId } = req.params;
+    const {
+      fullName,
+      phoneNumber,
+      bio,
+      gender,
+      oldPassword,
+      password,
+    } = req.body;
+
+    const user = await UserModel.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Update basic profile fields
+    if (fullName) user.fullName = fullName;
+    if (phoneNumber) user.phoneNumber = phoneNumber;
+    if (bio !== undefined) user.bio = bio;
+    if (gender) user.gender = gender;
+
+    // If password change is requested
+    if (oldPassword || password) {
+      if (!oldPassword || !password) {
+        return res.status(400).json({ message: 'Old and new passwords are required' });
+      }
+
+      const isMatch = await bcrypt.compare(oldPassword, user.password);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Incorrect current password' });
+      }
+
+      const hashed = await bcrypt.hash(password, 10);
+      user.password = hashed;
+    }
+
+    await user.save();
+
+    return res.json({ message: 'Profile updated successfully' });
+  } catch (err) {
+    console.error('Update profile error:', err);
+    return res.status(500).json({ message: 'Server error while updating profile' });
+  }
+};
+
+export const userDashboardData = async (req, res) => {
+  const { userId, groupId } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(groupId)) {
+    return res.status(400).json({ message: "Invalid group ID" });
+  }
+
+  try {
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const announcements = await AnnouncementModel.find({ group: groupId, published: true })
+      .sort({ createdAt: -1 })
+      .limit(3);
+
+    res.status(200).json({ user, announcements });
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: "An error occurred while fetching data" });
   }
-}
+};
 
-export const adminSearchedUsers = async (req, res) => {
-  const { id } = req.params; // groupId
+export const userGroups = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const user = await UserModel.findById(id).populate('groups.group');
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    // Extract group details from populated groups
+    const groupData = user.groups.map(g => ({
+      _id: g.group._id,
+      name: g.group.name,
+      status: g.status,
+    }));
+
+    res.status(200).json({ groups: groupData });
+  } catch (error) {
+    console.error('Error fetching user groups', error);
+    res.status(500).json({ message: "Error fetching your groups." });
+  }
+};
+
+export const manageSearchedUsers = async (req, res) => {
+  const { id } = req.params;
   const {
     fullName,
     email,
-    role,
+    permission,
     page = 1,
     limit = 10,
   } = req.query;
 
   try {
-    // Step 1: Get group and its members
     const group = await GroupModel.findById(id).populate({
       path: 'members.user',
       select: '_id',
@@ -264,7 +399,10 @@ export const adminSearchedUsers = async (req, res) => {
       return res.status(404).json({ message: 'Group not found' });
     }
 
-    const memberIds = group.members.map(m => m.user?._id).filter(Boolean);
+    // Step 1: Filter member IDs by permission if provided
+    let memberIds = group.members
+      .filter(m => m.user && (!permission || m.permissions.includes(permission)))
+      .map(m => m.user._id);
 
     if (!memberIds.length) {
       return res.status(200).json({ users: [], totalPages: 0 });
@@ -283,16 +421,11 @@ export const adminSearchedUsers = async (req, res) => {
       query.email = { $regex: email.trim(), $options: "i" };
     }
 
-    if (role?.trim()) {
-      query.role = { $regex: role.trim(), $options: "i" };
-    }
-
-    // Step 3: Get total matching count
+    // Step 3: Count + Pagination
     const total = await UserModel.countDocuments(query);
 
-    // Step 4: Fetch paginated users
     const users = await UserModel.find(query)
-      .select('_id fullName email phoneNumber role')
+      .select('_id fullName email phoneNumber')
       .skip((page - 1) * limit)
       .limit(Number(limit));
 
@@ -308,7 +441,7 @@ export const adminSearchedUsers = async (req, res) => {
 };
 
 export const adminUsers = async (req, res) => {
-  const { id } = req.params; // groupId
+  const { id } = req.params;
   const page = parseInt(req.query.page) || 1;
   const limit = 10;
 

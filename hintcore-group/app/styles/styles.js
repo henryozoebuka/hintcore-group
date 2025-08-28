@@ -1,4 +1,3 @@
-// styles/styles.js
 const LIGHTCOLORS = {
   background: '#FFFFFF',
   text: '#000000',
@@ -46,55 +45,118 @@ const SETTINGS_STYLES = {
   },
 };
 
+const BUTTON = {
+  padding: 12,
+  borderRadius: 8,
+  marginBottom: 10,
+  alignItems: 'center',
+};
+
+const SMALL_BUTTON = {
+  padding: 8,
+  borderRadius: 6,
+  marginLeft: 6,
+};
+
 const INPUT = {
-    width: '100%',
-    padding: 14,
-    borderRadius: 10,
-    fontSize: 16,
-    marginBottom: 16
-  }
+  width: '100%',
+  padding: 14,
+  borderRadius: 10,
+  fontSize: 16,
+  marginBottom: 16,
+};
 
-  // Add this block below existing constants
+const CARD = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  padding: 12,
+  borderWidth: 1,
+  borderRadius: 10,
+  marginBottom: 10,
+};
 
+const CHECKBOX = {
+  width: 22,
+  height: 22,
+  borderRadius: 4,
+  borderWidth: 1,
+  marginRight: 10,
+};
+
+const PAGINATION = {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginTop: 15,
+};
+
+const PAGE_BUTTON = {
+  padding: 10,
+  borderRadius: 8,
+};
+
+// New Header styles
 const HEADER_STYLES = {
   container: {
-    width: "100%",
+    width: '100%',
     height: 60,
-    backgroundColor: "#1E90FF",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     elevation: 4,
   },
   title: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 20,
-    fontWeight: "bold",
+    fontWeight: 'bold',
   },
   rightSection: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   username: {
-    color: "#fff",
+    color: '#fff',
     marginRight: 12,
     fontSize: 16,
   },
   logoutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ef4444",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
   },
   logoutText: {
-    color: "#fff",
+    color: '#fff',
     marginLeft: 4,
-    fontWeight: "500",
+    fontWeight: '500',
   },
 };
 
+// New Header styles
+const FOOTER_STYLES = {
+  container: {
+    width: '100%',
+    height: 60,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    elevation: 4,
+  },
+};
 
-export default {LIGHTCOLORS, DARKCOLORS, SETTINGS_STYLES, HEADER_STYLES, INPUT}
+export default {
+  LIGHTCOLORS,
+  DARKCOLORS,
+  SETTINGS_STYLES,
+  HEADER_STYLES,
+  FOOTER_STYLES,
+  BUTTON,
+  SMALL_BUTTON,
+  INPUT,
+  CARD,
+  CHECKBOX,
+  PAGINATION,
+  PAGE_BUTTON,
+};

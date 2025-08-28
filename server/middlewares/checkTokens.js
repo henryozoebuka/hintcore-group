@@ -8,8 +8,7 @@ export const checkPermissionToken = (allowedPermissions) => {
         const token = authHeader && authHeader.split(' ')[1];
 
         if (!token) {
-            return res.status(401).json({ message: 'Please login to continue.' });
-            
+            return res.status(401).json({ message: 'Please login to continue.' });            
         }
         jwt.verify(token, process.env.JWT_PASSWORD, (err, decoded) => {
             if (err) {

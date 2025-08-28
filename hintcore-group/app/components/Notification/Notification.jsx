@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useSelector } from 'react-redux';
 
 const Notification = ({ visible, type, message }) => {
@@ -7,31 +7,43 @@ const Notification = ({ visible, type, message }) => {
 
   if (!visible) return null;
 
-  const bgColor = type === 'success' ? 'green' : 'red';
+  const backgroundColor = type === 'success'
+    ? '#DFF5E1' // soft green tint
+    : '#FDECEA'; // soft red tint
+
+  const borderColor = type === 'success'
+    ? '#6BCB77' // green border
+    : '#FF6B6B'; // red border
+
+  const textColor = type === 'success'
+    ? '#2E7D32'
+    : '#C62828';
 
   return (
     <View
       style={{
         position: 'absolute',
-        top: 50, // Distance from top of the screen
+        top: 50,
         left: 20,
         right: 20,
         zIndex: 9999,
         padding: 14,
-        backgroundColor: bgColor,
+        backgroundColor,
+        borderLeftWidth: 6,
+        borderLeftColor: borderColor,
         borderRadius: 8,
-        elevation: 5, // For Android shadow
+        elevation: 5,
         shadowColor: '#000',
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
         shadowOffset: { width: 0, height: 2 },
       }}
     >
-      <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>
+      <Text style={{ color: textColor, fontWeight: '500', textAlign: 'center' }}>
         {message}
       </Text>
     </View>
   );
-}
+};
 
 export default Notification;

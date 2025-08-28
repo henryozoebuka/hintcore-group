@@ -1,155 +1,257 @@
-// pages/CreateAnnouncement/CreateAnnouncement.js
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
+  Pressable,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSelector } from "react-redux";
 import privateAxios from "../../utils/axios/privateAxios";
 import stylesConfig from "../../styles/styles";
+import Notification from "../../components/Notification/Notification";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Footer from "../../components/Footer/Footer";
 
 const CreateAnnouncement = ({ navigation }) => {
-  const { LIGHTCOLORS, DARKCOLORS, INPUT } = stylesConfig;
-  const isDarkMode = useSelector((state) => state.colors.isDarkMode);
-  const colors = isDarkMode ? DARKCOLORS : LIGHTCOLORS;
+  const { INPUT } = stylesConfig;
+  const { colors } = useSelector((state) => state.colors);
 
-  // Form state
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [category, setCategory] = useState("");
-  const [tags, setTags] = useState("");
-  const [thumbnail, setThumbnail] = useState("");
   const [published, setPublished] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [groupId, setGroupId] = useState("");
+  const [createdBy, setCreatedBy] = useState("");
+  const [notification, setNotification] = useState({
+    visible: false,
+    type: "",
+    message: "",
+  });
 
   const handleSubmit = async () => {
     if (!title || !body) {
-      return Alert.alert("Validation Error", "Title and body are required.");
+      setNotification({
+        visible: true,
+        type: "error",
+        message: "Title and body are required.",
+      });
+      setTimeout(() => setNotification({ visible: false, type: "", message: "" }), 3000);
+      return;
     }
 
     try {
-      const payload = {
+      setLoading(true);
+      const response = await privateAxios.post(`/private/create-announcement`, {
         title,
         body,
-        category,
-        tags: tags.split(",").map((tag) => tag.trim()),
-        thumbnail,
         published,
-      };
+        groupId,
+        createdBy,
+      });
 
-      await privateAxios.post("/announcements", payload);
-      Alert.alert("Success", "Announcement created successfully.");
-      navigation.goBack();
+      if (response.status === 201) {
+        setTitle("");
+        setBody("");
+        setPublished(false);
+
+        setNotification({
+          visible: true,
+          type: "success",
+          message: response.data.message || "Announcement created successfully.",
+        });
+        setTimeout(() => {
+          setNotification({ visible: false, type: "", message: "" });
+          navigation.navigate("manage-announcements");
+        }, 3000);
+      } else {
+        throw new Error("Unexpected response");
+      }
     } catch (error) {
+      setNotification({
+        visible: true,
+        type: "error",
+        message:
+          error.response?.data?.message || "Failed to create announcement.",
+      });
+      setTimeout(() => setNotification({ visible: false, type: "", message: "" }), 3000);
       console.error("Error creating announcement:", error);
-      Alert.alert("Error", "Failed to create announcement. Try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleCancel = () => {
+    navigation.goBack();
+  };
+
+  useEffect(() => {
+    const fetchIds = async () => {
+      try {
+        const getGroupId = await AsyncStorage.getItem("currentGroupId");
+        const getUserId = await AsyncStorage.getItem("userId");
+
+        if (!getGroupId || !getUserId) {
+          setNotification({
+            visible: true,
+            type: "error",
+            message: "User or Group ID missing. Please try again.",
+          });
+          setTimeout(() => setNotification({ visible: false, type: "", message: "" }), 3000);
+          return;
+        }
+
+        setGroupId(getGroupId);
+        setCreatedBy(getUserId);
+      } catch (error) {
+        setNotification({
+          visible: true,
+          type: "error",
+          message: "Failed to load user or group information.",
+        });
+        setTimeout(() => setNotification({ visible: false, type: "", message: "" }), 3000);
+      }
+    };
+
+    fetchIds();
+  }, []);
+
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background, padding: 20 }}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Text
-        style={{
-          fontSize: 22,
-          fontWeight: "bold",
-          marginBottom: 20,
-          color: colors.text,
-        }}
-      >
-        Create Announcement
-      </Text>
-
-      <TextInput
-        style={[INPUT, { backgroundColor: colors.inputBackground, color: colors.text, borderWidth: 1, borderColor: colors.border }]}
-        placeholder="Title"
-        placeholderTextColor={colors.placeholder}
-        value={title}
-        onChangeText={setTitle}
-      />
-
-      <TextInput
-        style={[
-          INPUT,
-          {
-            backgroundColor: colors.inputBackground,
-            color: colors.text,
-            borderWidth: 1,
-            borderColor: colors.border,
-            height: 120,
-            textAlignVertical: "top",
-          },
-        ]}
-        placeholder="Body"
-        placeholderTextColor={colors.placeholder}
-        value={body}
-        onChangeText={setBody}
-        multiline
-      />
-
-      <TextInput
-        style={[INPUT, { backgroundColor: colors.inputBackground, color: colors.text, borderWidth: 1, borderColor: colors.border }]}
-        placeholder="Category (e.g., News, Event)"
-        placeholderTextColor={colors.placeholder}
-        value={category}
-        onChangeText={setCategory}
-      />
-
-      <TextInput
-        style={[INPUT, { backgroundColor: colors.inputBackground, color: colors.text, borderWidth: 1, borderColor: colors.border }]}
-        placeholder="Tags (comma separated)"
-        placeholderTextColor={colors.placeholder}
-        value={tags}
-        onChangeText={setTags}
-      />
-
-      <TextInput
-        style={[INPUT, { backgroundColor: colors.inputBackground, color: colors.text, borderWidth: 1, borderColor: colors.border }]}
-        placeholder="Thumbnail URL (optional)"
-        placeholderTextColor={colors.placeholder}
-        value={thumbnail}
-        onChangeText={setThumbnail}
-      />
-
-      <TouchableOpacity
-        onPress={() => setPublished(!published)}
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          marginBottom: 16,
-        }}
-      >
-        <View
-          style={{
-            width: 20,
-            height: 20,
-            borderWidth: 1,
-            borderColor: colors.text,
-            marginRight: 8,
-            backgroundColor: published ? colors.primary : "transparent",
-          }}
+      <View style={{ flex: 1, padding: 20 }}>
+        <Notification
+          visible={notification.visible}
+          type={notification.type}
+          message={notification.message}
         />
-        <Text style={{ color: colors.text, fontSize: 16 }}>Publish Now</Text>
-      </TouchableOpacity>
 
-      <TouchableOpacity
-        onPress={handleSubmit}
-        style={{
-          backgroundColor: colors.primary,
-          padding: 16,
-          borderRadius: 10,
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ color: colors.mainButtonText, fontSize: 16, fontWeight: "bold" }}>
-          Create
+        <Text
+          style={{
+            fontSize: 22,
+            fontWeight: "bold",
+            marginBottom: 20,
+            color: colors.text,
+          }}
+        >
+          Create Announcement
         </Text>
-      </TouchableOpacity>
-    </ScrollView>
+
+        {/* Title */}
+        <TextInput
+          style={[
+            INPUT,
+            {
+              backgroundColor: colors.inputBackground,
+              color: colors.text,
+              borderWidth: 1,
+              borderColor: colors.border,
+              marginBottom: 20,
+            },
+          ]}
+          placeholder="Title"
+          placeholderTextColor={colors.placeholder}
+          value={title}
+          onChangeText={setTitle}
+        />
+
+        {/* Body expands */}
+        <TextInput
+          style={[
+            INPUT,
+            {
+              flex: 1,
+              backgroundColor: colors.inputBackground,
+              color: colors.text,
+              borderWidth: 1,
+              borderColor: colors.border,
+              textAlignVertical: "top",
+              paddingVertical: 10,
+            },
+          ]}
+          placeholder="Body"
+          placeholderTextColor={colors.placeholder}
+          value={body}
+          onChangeText={setBody}
+          multiline
+        />
+
+        {/* Publish toggle */}
+        <Pressable
+          onPress={() => setPublished(!published)}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginVertical: 16,
+          }}
+        >
+          <View
+            style={{
+              width: 20,
+              height: 20,
+              borderWidth: 1,
+              borderColor: colors.text,
+              marginRight: 8,
+              backgroundColor: published ? colors.primary : "transparent",
+            }}
+          />
+          <Text style={{ color: colors.text, fontSize: 16 }}>Publish Now</Text>
+        </Pressable>
+
+        {/* Create button */}
+        <Pressable
+          onPress={handleSubmit}
+          style={{
+            backgroundColor: colors.primary,
+            padding: 16,
+            borderRadius: 10,
+            alignItems: "center",
+            marginBottom: 10,
+            flexDirection: "row",
+            justifyContent: "center",
+          }}
+          disabled={loading}
+        >
+          {loading && (
+            <ActivityIndicator
+              color={colors.mainButtonText}
+              size="small"
+              style={{ marginRight: 8 }}
+            />
+          )}
+          <Text
+            style={{
+              color: colors.mainButtonText,
+              fontSize: 16,
+              fontWeight: "bold",
+            }}
+          >
+            {loading ? "Creating..." : "Create"}
+          </Text>
+        </Pressable>
+
+        {/* Cancel button */}
+        <Pressable
+          onPress={handleCancel}
+          style={{
+            backgroundColor: colors.border,
+            padding: 16,
+            borderRadius: 10,
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "bold" }}>
+            Cancel
+          </Text>
+        </Pressable>
+      </View>
+
+      <Footer />
+    </KeyboardAvoidingView>
   );
 };
 

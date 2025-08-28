@@ -38,23 +38,12 @@ const groupSchema = new mongoose.Schema({
         },
     ],
 
-    announcements: [
-        {
-            title: String,
-            body: String,
-            createdAt: { type: Date, default: Date.now },
-            createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        },
-    ],
-
-    // Optional: track group status
     status: {
         type: String,
         enum: ["active", "inactive"],
         default: "active",
     },
 
-    // For search and join requests
     joinCode: {
         type: String,
         unique: true,

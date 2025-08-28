@@ -135,7 +135,7 @@ export const createGroup = async (req, res) => {
 
     // set currentGroup to the first created group
     newUser.currentGroup = newGroup._id;
-    
+
     await newUser.save({ session });
 
     // 9️⃣ OTP generation & save
@@ -172,5 +172,221 @@ export const createGroup = async (req, res) => {
     session.endSession();
     console.error("CreateGroup Error:", error);
     return res.status(500).json({ message: "Internal server error during group creation." });
+  }
+};
+
+export const fetchGroupJoinCode = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const group = await GroupModel.findById(id)
+      .select('joinCode');
+    if (!group) {
+      return res.status(404).json({ message: "Group not found." });
+    }
+
+    res.status(200).json({
+      joinCode: group.joinCode,
+    })
+
+  } catch (error) {
+    console.error("FetchGroupInfo Error:", error);
+    res.status(500).json({ message: "Something went wrong while fetching group information." });
+  }
+}
+
+export const verifyGroup = async (req, res) => {
+  const { joinCode, groupPassword } = req.body;
+
+  try {
+    // ✅ Select the groupPassword field explicitly
+    const group = await GroupModel.findOne({ joinCode: joinCode.toUpperCase() }).select('+groupPassword');
+
+    const isPasswordValid = group && await bcrypt.compare(groupPassword, group.groupPassword);
+
+    if (!group || !isPasswordValid) {
+      return res.status(404).json({ message: "Invalid group credentials." });
+    }
+
+    res.status(200).json({
+      groupName: group.name,
+      message: `${group.name} verified, please fill out your information.`,
+    });
+
+  } catch (error) {
+    console.error('Error verifying group:', error);
+    res.status(500).json({ message: 'Error verifying group.' });
+  }
+};
+
+export const joinGroup = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const {
+      fullName: rawFullName,
+      email: rawEmail,
+      phoneNumber: rawPhoneNumber,
+      password: rawPassword,
+      joinCode: rawJoinCode,
+    } = req.body;
+
+    const fullName = typeof rawFullName === "string" ? rawFullName.trim() : rawFullName;
+    const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : rawEmail;
+    const phoneNumber = typeof rawPhoneNumber === "string" ? rawPhoneNumber.trim() : rawPhoneNumber;
+    const password = typeof rawPassword === "string" ? rawPassword.trim() : rawPassword;
+    const joinCode = typeof rawJoinCode === "string" ? rawJoinCode.trim().toUpperCase() : rawJoinCode;
+
+    if (!fullName || !email || !phoneNumber || !password || !joinCode) {
+      return res.status(400).json({ message: "Please fill all required fields." });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: "Invalid email format." });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters long." });
+    }
+
+    const group = await GroupModel.findOne({ joinCode }).session(session);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found. Invalid join code." });
+    }
+
+    const existingUser = await UserModel.findOne({ email });
+
+    if (existingUser) {
+      const isMember = group.members.some(
+        (member) => member.user.toString() === existingUser._id.toString()
+      );
+
+      if (isMember) {
+        return res.status(202).json({
+          message: ` You are already a member of ${group.name}. Please login instead.`,
+        });
+      }
+
+      // Add existing user to group
+      group.members.push({
+        user: existingUser._id,
+        status: "active",
+        permissions: ["user"],
+      });
+      await group.save({ session });
+
+      existingUser.groups.push({
+        group: group._id,
+        status: "active",
+        permissions: ["user"],
+      });
+      existingUser.currentGroup = group._id;
+      await existingUser.save({ session });
+
+      const { formattedOTP, hashedOTP } = await generateAndHashOTP();
+      await UserOTPVerificationModel.create(
+        [{
+          userId: existingUser._id,
+          OTP: hashedOTP,
+          expiryDate: new Date(Date.now() + 10 * 60 * 1000),
+        }],
+        { session }
+      );
+
+      await session.commitTransaction();
+      session.endSession();
+
+      try {
+        await transporter.sendMail(getMailOptions(email, formattedOTP));
+      } catch (mailErr) {
+        console.error("Email sending failed:", mailErr);
+      }
+
+      return res.status(200).json({
+        message: "User added to group. Please verify your email.",
+        userId: existingUser._id,
+        groupId: group._id,
+      });
+    }
+
+    // Create new user
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const [newUser] = await UserModel.insertMany([{
+      fullName,
+      email,
+      phoneNumber,
+      password: hashedPassword,
+      verified: false,
+    }], { session });
+
+    group.members.push({
+      user: newUser._id,
+      status: "active",
+      permissions: ["user"],
+    });
+    await group.save({ session });
+
+    newUser.groups.push({
+      group: group._id,
+      status: "active",
+      permissions: ["user"],
+    });
+    newUser.currentGroup = group._id;
+    await newUser.save({ session });
+
+    const { formattedOTP, hashedOTP } = await generateAndHashOTP();
+    await UserOTPVerificationModel.create([{
+      userId: newUser._id,
+      OTP: hashedOTP,
+      expiryDate: new Date(Date.now() + 10 * 60 * 1000),
+    }], { session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    try {
+      await transporter.sendMail(getMailOptions(email, formattedOTP));
+    } catch (mailErr) {
+      console.error("Email sending failed:", mailErr);
+    }
+
+    return res.status(201).json({
+      message: "Joined group successfully. Please verify your email.",
+      userId: newUser._id,
+      groupId: group._id,
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("JoinGroup Error:", error);
+    return res.status(500).json({ message: "Internal server error during joining group." });
+  }
+};
+
+export const groupMembers = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const group = await GroupModel.findById(id)
+      .select('members')
+      .populate('members.user', 'fullName'); // Select only needed user fields
+
+    if (!group) {
+      return res.status(404).json({ message: "Group not found." });
+    }
+
+    const members = group.members
+      .filter(member => member.status === 'active') // Optional: only return active users
+      .map(member => ({
+        _id: member.user._id,
+        fullName: member.user.fullName,
+      }));
+
+      res.status(200).json({ users: members });
+  } catch (error) {
+    console.error("Fetch group members Error:", error);
+    return res.status(500).json({ message: "Internal server error during fetching group members." });
   }
 };
