@@ -14,21 +14,11 @@ import { Picker } from "@react-native-picker/picker";
 import { useSelector } from "react-redux";
 import stylesConfig from "../../styles/styles";
 import privateAxios from "../../utils/axios/privateAxios";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from '@expo/vector-icons';
 import Footer from "../../components/Footer/Footer";
 
 const ManageUsers = ({ navigation }) => {
-    const [groupId, setGroupId] = useState('');
-
-    useEffect(() => {
-        const getGroupIdFromStorage = async () => {
-            const fetchGroupId = await AsyncStorage.getItem('currentGroupId');
-            setGroupId(fetchGroupId);
-        };
-
-        getGroupIdFromStorage();
-    }, []);
+    
 
     const { colors } = useSelector((state) => state.colors);
 
@@ -49,7 +39,7 @@ const ManageUsers = ({ navigation }) => {
     const fetchSetUsers = async (pageNumber) => {
         try {
             setLoading(true);
-            const response = await privateAxios.get(`/private/admin-users/${groupId}?page=${pageNumber}`);
+            const response = await privateAxios.get(`/private/manage-users?page=${pageNumber}`);
             setUsers(response.data.users);
             setTotalPages(response.data.totalPages);
             setCurrentPage(pageNumber);
@@ -65,7 +55,7 @@ const ManageUsers = ({ navigation }) => {
         try {
             setLoading(true);
             const query = new URLSearchParams({ ...searchParams, page: pageNumber });
-            const response = await privateAxios.get(`/private/manage-searched-users/${groupId}?${query.toString()}`);
+            const response = await privateAxios.get(`/private/manage-searched-users?${query.toString()}`);
             setUsers(response.data.users);
             setTotalPages(response.data.totalPages);
             setCurrentPage(pageNumber);
@@ -145,10 +135,8 @@ const ManageUsers = ({ navigation }) => {
     };
 
     useEffect(() => {
-        if (groupId) {
-            fetchSetUsers(1);
-        }
-    }, [groupId]);
+        fetchSetUsers(1);
+    }, []);
 
     return (
         <View style={{ flex: 1 }}>
@@ -157,6 +145,7 @@ const ManageUsers = ({ navigation }) => {
                 <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text }]}>Manage Members</Text>
 
                 {/* Toggle search options */}
+                {users.length > 0 &&
                 <Pressable
                     style={[styles.button, { backgroundColor: colors.primary }]}
                     onPress={() => setSearchOptions(!searchOptions)}
@@ -164,7 +153,7 @@ const ManageUsers = ({ navigation }) => {
                     <Text style={{ color: colors.mainButtonText }}>
                         {searchOptions ? "Hide Search Options" : "Show Search Options"}
                     </Text>
-                </Pressable>
+                </Pressable>}
 
                 {/* Search fields */}
                 {searchOptions && (
@@ -242,7 +231,7 @@ const ManageUsers = ({ navigation }) => {
                 {loading ? (
                     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                         <ActivityIndicator size="large" color={colors.primary} />
-                        <Text>Searching for members...</Text>
+                        <Text style={{ color: colors.mainButtonText }}>Searching for members...</Text>
                     </View>
                 ) : users.length > 0 ? (
                     <FlatList

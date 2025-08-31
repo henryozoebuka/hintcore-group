@@ -88,8 +88,9 @@ const ManageAnnouncement = ({ route, navigation }) => {
     return (
         <View style={{ flex: 1 }}>
             {loading ?
-                <View style={[styles.SETTINGS_STYLES.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+                <View style={{ backgroundColor: colors.background, flex: 1, alignItems: 'center', justifyContent: 'center', }}>
                     <ActivityIndicator size="large" color={colors.primary} />
+                    <Text style={{ color: colors.text, marginTop: 10 }}>Loading Announcement...</Text>
                 </View> :
                 announcement ?
                     <View style={[styles.SETTINGS_STYLES.container, { backgroundColor: colors.background }]}>
@@ -100,7 +101,7 @@ const ManageAnnouncement = ({ route, navigation }) => {
                         </Text>
 
                         <View style={{ display: 'flex', flexDirection: 'row', columnGap: 5, borderBottomColor: colors.placeholder, borderBottomWidth: .5 }}>
-                            <Text style={{ fontWeight: 'bold', color: colors.text  }}>Created On:</Text>
+                            <Text style={{ fontWeight: 'bold', color: colors.text }}>Created On:</Text>
                             <Text style={{ color: colors.placeholder, marginBottom: 10 }}>{moment(announcement.createdAt).isValid() ? moment(announcement.createdAt).format('MMMM D, YYYY') : 'Invalid Date'}</Text>
 
                         </View>

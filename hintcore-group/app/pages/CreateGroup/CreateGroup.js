@@ -10,7 +10,6 @@ import {
   Image,
   SafeAreaView
 } from 'react-native';
-// import { ScrollView } from 'react-native-gesture-handler';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import HONTCOREGROUPLOGO from '../../../assets/images/hintcore-group-logo.png';
@@ -217,7 +216,6 @@ const CreateGroup = () => {
       </KeyboardAvoidingView>
     );
   }
-
 
   return (
     <KeyboardAvoidingView

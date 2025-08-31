@@ -13,25 +13,23 @@ import { useNavigation } from '@react-navigation/native';
 import Notification from '../../components/Notification/Notification';
 import HINTCORELOGO from '../../../assets/images/hintcore-group-logo.png';
 import privateAxios from '../../utils/axios/privateAxios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Footer from '../../components/Footer/Footer';
 import stylesConfig from "../../styles/styles";
+import { useAuth } from '../../hooks/useAuth';
 
 export default function UserDashboard() {
+  const { permissions } = useAuth();
   const navigation = useNavigation();
   const { colors } = useSelector((state) => state.colors);
 
-  const [userId, setUserId] = useState('');
-  const [groupId, setGroupId] = useState('');
   const [loading, setLoading] = useState(true);
-  const [permissions, setPermissions] = useState([]);
   const [notification, setNotification] = useState({
     visible: false,
     type: '',
     message: '',
   });
   const [dashboardData, setDashboardData] = useState({
-    user: '',
+    fullName: '',
     announcements: [],
     tasks: [],
     events: [],
@@ -43,41 +41,14 @@ export default function UserDashboard() {
   };
 
   useEffect(() => {
-    const getUserInfo = async () => {
-      const fetchGroupId = await AsyncStorage.getItem('currentGroupId');
-      const fetchUserId = await AsyncStorage.getItem('userId');
-
-      if (fetchGroupId && fetchUserId) {
-        setGroupId(fetchGroupId);
-        setUserId(fetchUserId);
-      } else {
-        setNotification({
-          visible: true,
-          type: 'error',
-          message: 'Missing user or group ID.',
-        });
-      }
-    };
-
-    getUserInfo();
-  }, []); // Run once on mount
-
-  useEffect(() => {
-    if (!userId || !groupId) return;
-
     const fetchDashboard = async () => {
       try {
         setLoading(true);
 
-        const permissionsString = await AsyncStorage.getItem('permissions');
-        const parsedPermissions = permissionsString ? JSON.parse(permissionsString) : [];
-        setPermissions(parsedPermissions);
-
-        const response = await privateAxios.post(`private/user-dashboard`, { userId, groupId });
-
+        const response = await privateAxios.post(`private/user-dashboard`);
         if (response.status === 200) {
           setDashboardData({
-            user: response.data.user || '',
+            fullName: response.data.fullName || '',
             announcements: response.data.announcements || [],
             tasks: response.data.tasks || [],
             events: response.data.events || [],
@@ -91,23 +62,20 @@ export default function UserDashboard() {
           type: 'error',
           message: error?.response?.data?.message || 'Failed to load dashboard data.',
         });
+        setTimeout(() => {
+          setNotification({
+          visible: false,
+          type: '',
+          message: '',
+        });
+        }, 3000);
       } finally {
         setLoading(false);
       }
     };
 
     fetchDashboard();
-  }, [userId, groupId]);
-
-  const hasManagementPermission = permissions.some((perm) =>
-    [
-      'admin',
-      'manage_announcements',
-      'manage_events',
-      'manage_constitution',
-      'manage_finance',
-    ].includes(perm)
-  );
+  }, []);
 
   return (
     <View style={{ flex: 1 }}>
@@ -115,7 +83,7 @@ export default function UserDashboard() {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
           <View style={{ display: 'flex', }}>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text>Please wait...</Text>
+            <Text style={{color: colors.text}}>Loading your dashboard, please wait...</Text>
           </View>
         </View> :
         <ScrollView
@@ -132,7 +100,7 @@ export default function UserDashboard() {
               resizeMode="contain"
             />
             <Text style={{ fontSize: 24, fontWeight: 'bold', color: colors.text }}>
-              Welcome Back, {dashboardData.user.fullName}!
+              Welcome Back, {dashboardData.fullName}!
             </Text>
             <Text style={{ fontSize: 16, color: colors.placeholder }}>
               Here’s what’s happening in your groups
@@ -140,52 +108,52 @@ export default function UserDashboard() {
           </View>
 
           {/* Quick Actions */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 25 }}>
             <Pressable
               style={{
-                flex: 1,
                 backgroundColor: colors.secondary,
-                padding: 16,
+                padding: 8,
                 marginHorizontal: 6,
                 borderRadius: 12,
                 alignItems: 'center',
               }}
               onPress={() => navigation.navigate('announcements')}
             >
-              <Text style={{ color: colors.text, fontWeight: '600' }}>📢 Announcements</Text>
+              <Text>📢</Text>
+              <Text style={{ color: colors.text, fontWeight: '600' }}>Announcements</Text>
             </Pressable>
 
             <Pressable
               style={{
-                flex: 1,
                 backgroundColor: colors.secondary,
-                padding: 16,
+                padding: 8,
                 marginHorizontal: 6,
                 borderRadius: 12,
                 alignItems: 'center',
               }}
               onPress={() => navigation.navigate('constitutions')}
             >
-              <Text style={{ color: colors.text, fontWeight: '600' }}>📅 Constitutions</Text>
+              <Text>📅</Text>
+              <Text style={{ color: colors.text, fontWeight: '600' }}>Constitutions</Text>
             </Pressable>
 
             <Pressable
               style={{
-                flex: 1,
                 backgroundColor: colors.secondary,
-                padding: 16,
+                padding: 8,
                 marginHorizontal: 6,
                 borderRadius: 12,
                 alignItems: 'center',
               }}
-              onPress={() => navigation.navigate('Finance')}
+              onPress={() => navigation.navigate('payments')}
             >
-              <Text style={{ color: colors.text, fontWeight: '600' }}>💰 Finance</Text>
+              <Text>💰</Text>
+              <Text style={{ color: colors.text, fontWeight: '600' }}>Payments</Text>
             </Pressable>
           </View>
 
           {/* ✅ Management Dashboard Button */}
-          {hasManagementPermission && (
+          {permissions.includes('admin') && (
             <Pressable
               style={{
                 backgroundColor: colors.primary,
@@ -224,7 +192,7 @@ export default function UserDashboard() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.text, fontWeight: "bold" }}>{truncateTitle(item.title)}</Text>
-                    <Text style={{ color: colors.text, textAlign: 'right' }}>{moment(item.createdAt).format('MMMM DD, YYYY')}</Text>
+                    {item?.createdAt && <Text style={{ color: colors.text, textAlign: 'right' }}>{moment(item.createdAt).format('MMMM DD, YYYY')}</Text>}
                   </View>
                 </Pressable>
               ))

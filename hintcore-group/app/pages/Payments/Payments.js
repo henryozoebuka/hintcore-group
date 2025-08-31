@@ -11,21 +11,17 @@ import {
 } from "react-native";
 import moment from "moment";
 import { useSelector } from "react-redux";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import privateAxios from "../../utils/axios/privateAxios";
 import stylesConfig from "../../styles/styles";
 import Notification from "../../components/Notification/Notification";
 import Footer from "../../components/Footer/Footer";
-import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from "@react-native-community/datetimepicker";
 
-const ManageFinances = ({ navigation }) => {
+const Payments = ({ navigation }) => {
     const { colors } = useSelector((state) => state.colors);
-    const [groupId, setGroupId] = useState("");
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [selectedDate, setSelectedDate] = useState(null);
-    const [finances, setFinances] = useState([]);
-    const [selectedFinances, setSelectedFinances] = useState([]);
+    const [payments, setPayments] = useState([]);
     const [searchOptions, setSearchOptions] = useState(false);
     const [searchMode, setSearchMode] = useState(false);
     const [searchParams, setSearchParams] = useState({ titleOrContent: "", date: "" });
@@ -35,21 +31,23 @@ const ManageFinances = ({ navigation }) => {
     const [notification, setNotification] = useState({ visible: false, type: "", message: "" });
 
     const fetchPayments = async (pageNumber = 1) => {
-        if (!groupId) return;
         try {
             setLoading(true);
-            const response = await privateAxios.get(`/private/manage-payments/${groupId}?page=${pageNumber}`);
-            setFinances(response.data.finances || []);
+            const response = await privateAxios.get(`/private/payments?page=${pageNumber}`);
+            setPayments(response.data.payments || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
         } catch (error) {
-            showError("Failed to fetch finances.");
+            if (error?.response?.data?.message) {
+                showError(error?.response?.data?.message || "Failed to fetch payments.");
+            }
+            console.error(error)
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchSearchedFinances = async (pageNumber = 1) => {
+    const fetchSearchedPayments = async (pageNumber = 1) => {
         try {
             setLoading(true);
 
@@ -58,8 +56,8 @@ const ManageFinances = ({ navigation }) => {
                 page: pageNumber,
             });
 
-            const response = await privateAxios.get(`/private/manage-search-payments/${groupId}?${query}`);
-            setFinances(response.data.finances || []);
+            const response = await privateAxios.get(`/private/search-payments?${query}`);
+            setPayments(response.data.payments || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
         } catch (error) {
@@ -80,51 +78,7 @@ const ManageFinances = ({ navigation }) => {
 
     const handleSearch = () => {
         setSearchMode(true);
-        fetchSearchedFinances(1);
-    };
-
-    const handleCheckbox = (id) => {
-        setSelectedFinances((prev) =>
-            prev.includes(id) ? prev.filter((aId) => aId !== id) : [...prev, id]
-        );
-    };
-
-    const confirmDeleteSelected = () => {
-        if (!selectedFinances.length) return;
-        Alert.alert("Delete", `Delete ${selectedFinances.length} selected finance(s)?`, [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Delete",
-                style: "destructive",
-                onPress: async () => {
-                    try {
-                        await privateAxios.post("/private/delete-finances", { ids: selectedFinances });
-                        setSelectedFinances([]);
-                        searchMode ? fetchSearchedFinances(currentPage) : fetchPayments(currentPage);
-                    } catch {
-                        showError("Failed to delete finances.");
-                    }
-                },
-            },
-        ]);
-    };
-
-    const confirmDeleteSingle = (id) => {
-        Alert.alert("Delete", "Delete this payement?", [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Delete",
-                style: "destructive",
-                onPress: async () => {
-                    try {
-                        await privateAxios.delete(`/private/delete-finance/${id}`);
-                        searchMode ? fetchSearchedFinances(currentPage) : fetchPayments(currentPage);
-                    } catch {
-                        showError("Failed to delete finance.");
-                    }
-                },
-            },
-        ]);
+        fetchSearchedPayments(1);
     };
 
     const showError = (msg) => {
@@ -135,38 +89,22 @@ const ManageFinances = ({ navigation }) => {
     const handleNextPage = () => {
         if (currentPage < totalPages) {
             const nextPage = currentPage + 1;
-            searchMode ? fetchSearchedFinances(nextPage) : fetchPayments(nextPage);
+            searchMode ? fetchSearchedPayments(nextPage) : fetchPayments(nextPage);
         }
     };
 
     const handlePreviousPage = () => {
         if (currentPage > 1) {
             const prevPage = currentPage - 1;
-            searchMode ? fetchSearchedFinances(prevPage) : fetchPayments(prevPage);
+            searchMode ? fetchSearchedPayments(prevPage) : fetchPayments(prevPage);
         }
     };
 
-    
     useEffect(() => {
-        const fetchGroupId = async () => {
-            const id = await AsyncStorage.getItem("currentGroupId");
-            if (!id) {
-                setNotification({ visible: true, type: "error", message: "Group ID not found." });
-                return;
-            }
-            setGroupId(id);
-        };
-
-        fetchGroupId();
+        fetchPayments(1);
     }, []);
 
-    useEffect(() => {
-        if (groupId) {
-            fetchPayments(1);
-        }
-    }, [groupId]);
-
-    // Truncate title if it exceeds 20 characters
+    // Truncate title if it exceeds 25 characters
     const truncateTitle = (title) => {
         return title.length > 25 ? title.slice(0, 25) + "..." : title;
     };
@@ -177,27 +115,19 @@ const ManageFinances = ({ navigation }) => {
                 <Notification visible={notification.visible} type={notification.type} message={notification.message} />
 
                 <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text }]}>
-                    Manage Finances
+                    Payments
                 </Text>
 
-                {/* Create Payment Button */}
-                <Pressable
-                    style={[stylesConfig.BUTTON, { backgroundColor: colors.primary }]}
-                    onPress={() => navigation.navigate("create-payment")}
-                >
-                    <Text style={{ color: colors.mainButtonText }}>Create Payment</Text>
-                </Pressable>
-
                 {/* Search Options */}
-                {finances.length > 0 && 
-                <Pressable
-                    style={[stylesConfig.BUTTON, { backgroundColor: colors.primary }]}
-                    onPress={() => setSearchOptions(!searchOptions)}
-                >
-                    <Text style={{ color: colors.mainButtonText }}>
-                        {searchOptions ? "Hide Search Options" : "Show Search Options"}
-                    </Text>
-                </Pressable>}
+                {payments.length > 0 &&
+                    <Pressable
+                        style={[stylesConfig.BUTTON, { backgroundColor: colors.primary }]}
+                        onPress={() => setSearchOptions(!searchOptions)}
+                    >
+                        <Text style={{ color: colors.mainButtonText }}>
+                            {searchOptions ? "Hide Search Options" : "Show Search Options"}
+                        </Text>
+                    </Pressable>}
 
                 {searchOptions && (
                     <View style={{ marginVertical: 10 }}>
@@ -257,76 +187,36 @@ const ManageFinances = ({ navigation }) => {
                     </View>
                 )}
 
-                {/* Delete Selected Button */}
-                {finances.length > 0 && <Pressable
-                    style={[
-                        stylesConfig.BUTTON,
-                        { backgroundColor: selectedFinances.length ? "#dc3545" : colors.border },
-                    ]}
-                    onPress={confirmDeleteSelected}
-                    disabled={!selectedFinances.length}
-                >
-                    <Text style={{ color: "#fff" }}>Delete Selected</Text>
-                </Pressable>}
-
                 {/* List */}
                 {loading ? (
                     <View style={{ backgroundColor: colors.background, flex: 1, alignItems: 'center', justifyContent: 'center', }}>
                         <ActivityIndicator size="large" color={colors.primary} />
-                        <Text style={{ color: colors.text, marginTop: 10 }}>Loading Finances...</Text>
+                        <Text style={{ color: colors.text, marginTop: 10 }}>Loading Payments...</Text>
                     </View>
-                ) : finances.length > 0 ? (
+                ) : payments.length > 0 ? (
                     <FlatList
-                        data={finances}
+                        data={payments}
                         keyExtractor={(item) => item._id}
                         renderItem={({ item }) => (
                             <Pressable
                                 style={[stylesConfig.CARD, { borderColor: colors.border, backgroundColor: colors.secondary }]}
-                                onPress={() => navigation.navigate("manage-payment", { id: item._id })}
+                                onPress={() => navigation.navigate("payment", { id: item._id })}
                             >
-                                {/* Checkbox */}
-                                <Pressable
-                                    onPress={() => handleCheckbox(item._id)}
-                                    style={[
-                                        stylesConfig.CHECKBOX,
-                                        {
-                                            backgroundColor: selectedFinances.includes(item._id)
-                                                ? colors.primary
-                                                : colors.background,
-                                        },
-                                    ]}
-                                />
-
                                 <View style={{ flex: 1 }}>
                                     <Text style={{ color: colors.text, fontWeight: "bold" }}>{truncateTitle(item.title)}</Text>
                                     <Text style={{ color: colors.text, textAlign: 'right' }}>{moment(item.createdAt).format('MMMM DD, YYYY')}</Text>
 
-                                    {/* Unpublished Tag */}
-                                    {!item.published && (
-                                        <Text style={{ color: "#dc3545", fontSize: 12, marginTop: 5 }}>Unpublished</Text>
-                                    )}
-                                </View>
-
-                                {/* Actions: Edit/Delete */}
-                                <View style={{ flexDirection: "row" }}>
-                                    <Pressable
-                                        style={[stylesConfig.SMALL_BUTTON]}
-                                        onPress={() => navigation.navigate("manage-edit-finance", { id: item._id })}
-                                    >
-                                        <Ionicons name="create-outline" size={24} color="#007bff" />
-                                    </Pressable>
-                                    <Pressable
-                                        style={[stylesConfig.SMALL_BUTTON]}
-                                        onPress={() => confirmDeleteSingle(item._id)}
-                                    >
-                                        <Ionicons name="trash-outline" size={24} color="red" />
-                                    </Pressable>
+                                    <View style={{ flexDirection: 'row', columnGap: 10 }}>
+                                        {item.required && (
+                                            <Text style={{ color: "#dc3545", fontSize: 12, marginTop: 5 }}> Required</Text>
+                                        )}
+                                    </View>
                                 </View>
                             </Pressable>
                         )}
                     />) :
                     <View style={{ backgroundColor: colors.background, flex: 1, alignItems: 'center', justifyContent: 'center', }}>
-                        <Text style={{ color: colors.text, marginTop: 10 }}>There are no finances to display.</Text>
+                        <Text style={{ color: colors.text, marginTop: 10 }}>There are no payments to display.</Text>
                     </View>
                 }
                 {/* Pagination */}
@@ -363,4 +253,4 @@ const ManageFinances = ({ navigation }) => {
     );
 };
 
-export default ManageFinances;
+export default Payments;

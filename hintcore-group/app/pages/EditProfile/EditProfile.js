@@ -8,7 +8,6 @@ import {
   ScrollView,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import privateAxios from '../../utils/axios/privateAxios';
@@ -29,7 +28,7 @@ const EditProfile = () => {
     password: '',
     confirmPassword: '',
   });
-  const [userId, setUserId] = useState('');
+  
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [notification, setNotification] = useState({ visible: false, type: '', message: '' });
@@ -38,11 +37,8 @@ const EditProfile = () => {
   useEffect(() => {
     (async () => {
       try {
-        const id = await AsyncStorage.getItem('userId');
-        if (!id) throw new Error('Not logged in.');
-        setUserId(id);
-        const response = await privateAxios.get(`/private/user-profile/${id}`);
-        const { fullName, phoneNumber, bio, gender } = response.data.data;
+        const response = await privateAxios.get(`/private/user-profile-edit`);
+        const { fullName, phoneNumber, bio, gender } = response.data.user;
         setFormData((p) => ({ ...p, fullName, phoneNumber, bio: bio || '', gender }));
       } catch (err) {
         console.error('Load profile error:', err);
@@ -103,7 +99,7 @@ const handleSubmit = async () => {
       payload.password = formData.password;
     }
 
-    const response = await privateAxios.patch(`/private/update-user-profile/${userId}`, payload);
+    const response = await privateAxios.patch(`/private/update-user-profile`, payload);
 
     if (response.status === 200) {
       setNotification({
@@ -197,7 +193,7 @@ const handleSubmit = async () => {
               },
             ]}
           >
-            <Text style={{ color: colors.text, fontSize: 16, marginRight: 4 }}>+</Text>
+            {formData.phoneNumber && <Text style={{ color: colors.text, fontSize: 16, marginRight: 4 }}>+</Text>}
             <TextInput
               style={{
                 flex: 1,

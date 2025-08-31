@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import moment from 'moment';
 import { useSelector } from "react-redux";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import privateAxios from "../../utils/axios/privateAxios";
 import stylesConfig from "../../styles/styles";
 import Notification from "../../components/Notification/Notification";
@@ -19,7 +18,6 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 
 const Announcements = ({ navigation }) => {
     const { colors } = useSelector((state) => state.colors);
-    const [groupId, setGroupId] = useState("");
     const [announcements, setAnnouncements] = useState([]);
     const [searchOptions, setSearchOptions] = useState(false);
     const [searchMode, setSearchMode] = useState(false);
@@ -33,26 +31,10 @@ const Announcements = ({ navigation }) => {
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [selectedDate, setSelectedDate] = useState(null);
 
-    useEffect(() => {
-        const fetchGroupId = async () => {
-            const id = await AsyncStorage.getItem("currentGroupId");
-            if (!id) {
-                setNotification({ visible: true, type: "error", message: "Group ID not found." });
-                return;
-            }
-            setGroupId(id);
-        };
-
-        fetchGroupId();
-    }, []);
-
     const fetchAnnouncements = async (pageNumber = 1) => {
-        if (!groupId) return;
         try {
             setLoading(true);
-            const response = await privateAxios.get(
-                `/private/announcements/${groupId}?page=${pageNumber}`
-            );
+            const response = await privateAxios.get(`/private/announcements?page=${pageNumber}`);
             setAnnouncements(response.data.announcements || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
@@ -67,9 +49,7 @@ const Announcements = ({ navigation }) => {
         try {
             setLoading(true);
             const query = new URLSearchParams({ ...searchParams, page: pageNumber });
-            const response = await privateAxios.get(
-                `/private/search-announcements/${groupId}?${query}`
-            );
+            const response = await privateAxios.get(`/private/search-announcements?${query}`);
             setAnnouncements(response.data.announcements || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
@@ -104,11 +84,9 @@ const Announcements = ({ navigation }) => {
         }
     };
 
-    useEffect(() => {
-        if (groupId) {
-            fetchAnnouncements(1);
-        }
-    }, [groupId]);
+    useEffect(() => {        
+        fetchAnnouncements(1);
+    }, []);
 
     // Date change handler
     const onChangeDate = (event, date) => {

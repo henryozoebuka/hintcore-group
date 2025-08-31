@@ -37,10 +37,7 @@ export default function Settings() {
 
   useEffect(() => {
     const loadUserIdAndTheme = async () => {
-      const id = await AsyncStorage.getItem('userId');
       const savedTheme = await AsyncStorage.getItem('theme');
-
-      if (id) setUserId(id);
 
       if (savedTheme === 'dark') {
         dispatch(setDarkMode());
@@ -65,7 +62,7 @@ export default function Settings() {
   const handleChangeGroup = async () => {
     try {
       setLoadingGroups(true);
-      const response = await privateAxios.get(`/private/user-groups/${userId}`);
+      const response = await privateAxios.get(`/private/user-groups`);
       setGroups(response.data.groups || []);
       setShowGroups(true);
     } catch (err) {

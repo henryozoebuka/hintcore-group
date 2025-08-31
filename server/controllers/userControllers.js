@@ -156,7 +156,7 @@ export const login = async (req, res) => {
     // 🔹 Generate JWT with only user-specific permissions in that group
     const token = jwt.sign(
       {
-        id: user._id,
+        userId: user._id,
         currentGroupId: currentGroup._id,
         permissions: userPermissions
       },
@@ -164,16 +164,10 @@ export const login = async (req, res) => {
       { expiresIn: '1d' }
     );
 
-    // 🔹 Clean response
-    const userResponse = {
-      userId: user._id,
-      currentGroupId: currentGroup._id,
-      groupName: currentGroup.name,
-      permissions: userPermissions
-    };
+    const groupName = currentGroup.name;
 
     res.status(200).json({
-      user: userResponse,
+      groupName,
       message: 'Logged In Successfully!',
       token
     });
@@ -186,48 +180,26 @@ export const login = async (req, res) => {
 
 export const userProfile = async (req, res) => {
   try {
-    // 1️⃣ Get userId from auth middleware or query param
-    const { id } = req.params; // Or req.user if using JWT auth
+    const { userId } = req.user;
 
-    if (!id) {
-      return res.status(400).json({ message: 'User ID is required' });
-    }
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ message: "User ID is required" });
+  }
 
     // 2️⃣ Fetch user and populate groups
-    const user = await UserModel.findById(id)
+    const user = await UserModel.findById(userId)
       .populate({
         path: 'groups.group',
         select: 'name description imageUrl', // Group fields to show
       })
-      .select('-password -OTPNumberOfAttempts'); // Hide sensitive fields
+      .select('-password -OTPNumberOfAttempts -groups'); // Hide sensitive fields
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
     // 3️⃣ Return profile
-    res.status(200).json({
-      data: {
-        _id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        bio: user.bio,
-        gender: user.gender,
-        imageUrl: user.imageUrl,
-        verified: user.verified,
-        groups: user.groups.map(g => ({
-          _id: g.group._id,
-          name: g.group.name,
-          description: g.group.description,
-          imageUrl: g.group.imageUrl,
-          status: g.status,
-          permissions: g.permissions
-        })),
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt
-      }
-    });
+    res.status(200).json({user});
 
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -235,50 +207,24 @@ export const userProfile = async (req, res) => {
   }
 };
 
-export const uuserProfile = async (req, res) => {
+export const userProfileEdit = async (req, res) => {
   try {
-    // 1️⃣ Get userId from auth middleware or query param
-    const { id } = req.params; // Or req.user if using JWT auth
+    const { userId } = req.user;
 
-    if (!id) {
-      return res.status(400).json({ message: 'User ID is required' });
-    }
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ message: "User ID is required" });
+  }
 
     // 2️⃣ Fetch user and populate groups
-    const user = await UserModel.findById(id)
-      .populate({
-        path: 'groups.group',
-        select: 'name description imageUrl', // Group fields to show
-      })
-      .select('-password -OTPNumberOfAttempts'); // Hide sensitive fields
+    const user = await UserModel.findById(userId)
+      .select('-password -OTPNumberOfAttempts -groups'); // Hide sensitive fields
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
     // 3️⃣ Return profile
-    res.status(200).json({
-      data: {
-        _id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        bio: user.bio,
-        gender: user.gender,
-        imageUrl: user.imageUrl,
-        verified: user.verified,
-        groups: user.groups.map(g => ({
-          _id: g.group._id,
-          name: g.group.name,
-          description: g.group.description,
-          imageUrl: g.group.imageUrl,
-          status: g.status,
-          permissions: g.permissions
-        })),
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt
-      }
-    });
+    res.status(200).json({user});
 
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -287,8 +233,13 @@ export const uuserProfile = async (req, res) => {
 };
 
 export const updateUserProfile = async (req, res) => {
+  const { userId } = req.user;
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ message: "Invalid IDs in token" });
+  }
+
   try {
-    const { id: userId } = req.params;
     const {
       fullName,
       phoneNumber,
@@ -332,34 +283,42 @@ export const updateUserProfile = async (req, res) => {
 };
 
 export const userDashboardData = async (req, res) => {
-  const { userId, groupId } = req.body;
+  const { userId, currentGroupId } = req.user;
 
-  if (!mongoose.Types.ObjectId.isValid(groupId)) {
-    return res.status(400).json({ message: "Invalid group ID" });
+  if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(currentGroupId)) {
+    return res.status(400).json({ message: "Invalid IDs in token" });
   }
 
   try {
-    const user = await UserModel.findById(userId);
+    const user = await UserModel.findById(userId).select("fullName");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const announcements = await AnnouncementModel.find({ group: groupId, published: true })
-      .sort({ createdAt: -1 })
-      .limit(3);
+    const announcements = await AnnouncementModel.find({ 
+      group: currentGroupId, 
+      published: true 
+    })
+    .select('title createdAt')
+    .sort({ createdAt: -1 })
+    .limit(3);
 
-    res.status(200).json({ user, announcements });
+    return res.status(200).json({ fullName: user.fullName, announcements });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "An error occurred while fetching data" });
+    console.error("Error fetching dashboard data:", error);
+    return res.status(500).json({ message: "An error occurred while fetching data" });
   }
 };
 
 export const userGroups = async (req, res) => {
-  const { id } = req.params;
+  const { userId } = req.user;
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ message: "Invalid IDs in token" });
+  }
 
   try {
-    const user = await UserModel.findById(id).populate('groups.group');
+    const user = await UserModel.findById(userId).populate('groups.group');
 
     if (!user) {
       return res.status(404).json({ message: "User not found." });
@@ -380,7 +339,11 @@ export const userGroups = async (req, res) => {
 };
 
 export const manageSearchedUsers = async (req, res) => {
-  const { id } = req.params;
+  const { currentGroupId } = req.user;
+
+  if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+    return res.status(400).json({ message: "Invalid IDs in token" });
+  }
   const {
     fullName,
     email,
@@ -390,7 +353,7 @@ export const manageSearchedUsers = async (req, res) => {
   } = req.query;
 
   try {
-    const group = await GroupModel.findById(id).populate({
+    const group = await GroupModel.findById(currentGroupId).populate({
       path: 'members.user',
       select: '_id',
     });
@@ -440,13 +403,17 @@ export const manageSearchedUsers = async (req, res) => {
   }
 };
 
-export const adminUsers = async (req, res) => {
-  const { id } = req.params;
+export const manageUsers = async (req, res) => {
+  const { currentGroupId } = req.user;
+
+  if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+    return res.status(400).json({ message: "Invalid IDs in token" });
+  }
   const page = parseInt(req.query.page) || 1;
   const limit = 10;
 
   try {
-    const group = await GroupModel.findById(id)
+    const group = await GroupModel.findById(currentGroupId)
       .populate({
         path: 'members.user',
         select: '_id fullName email phoneNumber role',

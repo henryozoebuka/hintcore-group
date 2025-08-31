@@ -4,15 +4,20 @@ import nodemailer from 'nodemailer';
 import mongoose from "mongoose";
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL,
-        pass: process.env.EMAIL_PASS
-    }
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL,
+    pass: process.env.EMAIL_PASS
+  }
 });
 
 export const createAnnouncement = async (req, res) => {
-  const { title, body, createdBy, published, groupId } = req.body;
+  const { title, body, published } = req.body;
+  const { userId: createdBy, currentGroupId: groupId } = req.user;
+
+  if (!mongoose.Types.ObjectId.isValid(createdBy) || !mongoose.Types.ObjectId.isValid(groupId)) {
+    return res.status(400).json({ message: "Invalid IDs in token" });
+  }
 
   if (!title || !body || !createdBy || !groupId) {
     return res.status(400).json({ message: 'Missing required fields.' });
@@ -45,20 +50,24 @@ export const createAnnouncement = async (req, res) => {
 };
 
 export const manageAnnouncements = async (req, res) => {
-  const { id: groupId } = req.params;
+  const { currentGroupId } = req.user;
+
+  if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+    return res.status(400).json({ message: "Invalid IDs in token" });
+  }
+
   const page = parseInt(req.query.page) || 1;
   const limit = 10; // You can adjust the page size
 
-  if (!groupId) {
+  if (!currentGroupId) {
     return res.status(400).json({ message: 'Group ID is required.' });
   }
 
   try {
     // Count total documents for pagination
-    const totalAnnouncements = await AnnouncementModel.countDocuments({ group: groupId });
+    const totalAnnouncements = await AnnouncementModel.countDocuments({ group: currentGroupId });
 
-    
-    const announcements = await AnnouncementModel.find({ group: groupId })
+    const announcements = await AnnouncementModel.find({ group: currentGroupId })
       .select('-body')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -81,7 +90,7 @@ export const manageAnnouncements = async (req, res) => {
 };
 
 export const announcements = async (req, res) => {
-  const { id: groupId } = req.params;
+  const groupId = req.user.currentGroupId;
   const page = parseInt(req.query.page) || 1;
   const limit = 10;
 
@@ -93,7 +102,7 @@ export const announcements = async (req, res) => {
     const totalAnnouncements = await AnnouncementModel.countDocuments({ group: groupId, published: true });
 
     const announcements = await AnnouncementModel.find({ group: groupId, published: true })
-      .select('-body')  
+      .select('-body')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
@@ -119,11 +128,11 @@ export const manageAnnouncement = async (req, res) => {
 
   try {
     const announcement = await AnnouncementModel.findById(id);
-    
+
     if (!announcement) {
       return res.status(404).json({ message: "Announcement not found" });
     }
-    
+
     res.status(200).json(announcement);
   } catch (error) {
     console.error("Error fetching announcement:", error); // Log before responding
@@ -136,11 +145,11 @@ export const announcement = async (req, res) => {
 
   try {
     const announcement = await AnnouncementModel.findById(id);
-    
+
     if (!announcement) {
       return res.status(404).json({ message: "Announcement not found" });
     }
-    
+
     res.status(200).json(announcement);
   } catch (error) {
     console.error("Error fetching announcement:", error);
@@ -149,9 +158,13 @@ export const announcement = async (req, res) => {
 };
 
 export const searchAnnouncements = async (req, res) => {
+  const groupId = req.user?.currentGroupId;
+  if (!groupId) {
+    return res.status(400).json({ message: "Group ID missing from token" });
+  }
+
   try {
     const { titleOrContent, date, page = 1, limit = 10 } = req.query;
-    const { id: groupId } = req.params;
 
     if (!groupId) {
       return res.status(400).json({ message: "Group ID is required." });
@@ -197,15 +210,21 @@ export const searchAnnouncements = async (req, res) => {
 };
 
 export const manageSearchAnnouncements = async (req, res) => {
+
+  const { currentGroupId } = req.user;
+
+  if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+    return res.status(400).json({ message: "Invalid IDs in token" });
+  }
+
   try {
     const { titleOrContent, date, page = 1, limit = 10 } = req.query;
-    const { id: groupId } = req.params;
 
-    if (!groupId) {
+    if (!currentGroupId) {
       return res.status(400).json({ message: "Group ID is required." });
     }
 
-    const query = { group: groupId };
+    const query = { group: currentGroupId };
 
     // Title or content regex
     if (titleOrContent?.trim()) {
@@ -274,58 +293,58 @@ export const updateAnnouncement = async (req, res) => {
 };
 
 export const deleteAnnouncement = async (req, res) => {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    try {
-        // Ensure the provided ID is a valid ObjectId
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ message: "Invalid announcement ID" });
-        }
-
-        // Find the announcement by ID and delete it
-        const deletedAnnouncement = await AnnouncementModel.findByIdAndDelete(id);
-
-        if (!deletedAnnouncement) {
-            return res.status(404).json({ message: "Announcement not found" });
-        }
-
-        return res.status(200).json({ message: "Announcement deleted successfully" });
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({ message: "Server error while deleting announcement" });
+  try {
+    // Ensure the provided ID is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid announcement ID" });
     }
+
+    // Find the announcement by ID and delete it
+    const deletedAnnouncement = await AnnouncementModel.findByIdAndDelete(id);
+
+    if (!deletedAnnouncement) {
+      return res.status(404).json({ message: "Announcement not found" });
+    }
+
+    return res.status(200).json({ message: "Announcement deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Server error while deleting announcement" });
+  }
 };
 
 export const deleteMultipleAnnouncements = async (req, res) => {
-    const { ids } = req.body;
+  const { ids } = req.body;
 
-    try {
-        // Check if ids are provided and are in an array format
-        if (!Array.isArray(ids) || ids.length === 0) {
-            return res.status(400).json({ message: "No announcement IDs provided" });
-        }
-
-        // Ensure all provided IDs are valid ObjectIds
-        const invalidIds = ids.filter(id => !mongoose.Types.ObjectId.isValid(id));
-
-        if (invalidIds.length > 0) {
-            return res.status(400).json({ message: `Invalid IDs: ${invalidIds.join(", ")}` });
-        }
-
-        // Delete announcements with the provided IDs
-        const deletedAnnouncements = await AnnouncementModel.deleteMany({
-            _id: { $in: ids }
-        });
-
-        if (deletedAnnouncements.deletedCount === 0) {
-            return res.status(404).json({ message: "No announcements found to delete" });
-        }
-
-        return res.status(200).json({
-            message: `${deletedAnnouncements.deletedCount} announcement(s) deleted successfully`,
-        });
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({ message: "Server error while deleting announcements" });
+  try {
+    // Check if ids are provided and are in an array format
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No announcement IDs provided" });
     }
+
+    // Ensure all provided IDs are valid ObjectIds
+    const invalidIds = ids.filter(id => !mongoose.Types.ObjectId.isValid(id));
+
+    if (invalidIds.length > 0) {
+      return res.status(400).json({ message: `Invalid IDs: ${invalidIds.join(", ")}` });
+    }
+
+    // Delete announcements with the provided IDs
+    const deletedAnnouncements = await AnnouncementModel.deleteMany({
+      _id: { $in: ids }
+    });
+
+    if (deletedAnnouncements.deletedCount === 0) {
+      return res.status(404).json({ message: "No announcements found to delete" });
+    }
+
+    return res.status(200).json({
+      message: `${deletedAnnouncements.deletedCount} announcement(s) deleted successfully`,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Server error while deleting announcements" });
+  }
 };

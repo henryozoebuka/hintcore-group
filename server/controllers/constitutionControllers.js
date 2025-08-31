@@ -4,15 +4,20 @@ import nodemailer from 'nodemailer';
 import mongoose from "mongoose";
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL,
-        pass: process.env.EMAIL_PASS
-    }
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL,
+    pass: process.env.EMAIL_PASS
+  }
 });
 
 export const createConstitution = async (req, res) => {
-  const { title, body, createdBy, published, groupId } = req.body;
+  const { title, body, published } = req.body;
+  const { userId: createdBy, currentGroupId: groupId } = req.user;
+
+  if (!mongoose.Types.ObjectId.isValid(createdBy) || !mongoose.Types.ObjectId.isValid(groupId)) {
+    return res.status(400).json({ message: "Invalid IDs in token" });
+  }
 
   if (!title || !body || !createdBy || !groupId) {
     return res.status(400).json({ message: 'Missing required fields.' });
@@ -45,20 +50,24 @@ export const createConstitution = async (req, res) => {
 };
 
 export const manageConstitutions = async (req, res) => {
-  const { id: groupId } = req.params;
+  const { currentGroupId } = req.user;
+
+  if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+    return res.status(400).json({ message: "Invalid IDs in token" });
+  }
   const page = parseInt(req.query.page) || 1;
   const limit = 10; // You can adjust the page size
 
-  if (!groupId) {
+  if (!currentGroupId) {
     return res.status(400).json({ message: 'Group ID is required.' });
   }
 
   try {
     // Count total documents for pagination
-    const totalConstitutions = await ConstitutionModel.countDocuments({ group: groupId });
+    const totalConstitutions = await ConstitutionModel.countDocuments({ group: currentGroupId });
 
-    
-    const constitutions = await ConstitutionModel.find({ group: groupId })
+
+    const constitutions = await ConstitutionModel.find({ group: currentGroupId })
       .select('-body')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -81,7 +90,8 @@ export const manageConstitutions = async (req, res) => {
 };
 
 export const constitutions = async (req, res) => {
-  const { id: groupId } = req.params;
+  // const { id: groupId } = req.params;
+  const groupId = req.user.currentGroupId;
   const page = parseInt(req.query.page) || 1;
   const limit = 10;
 
@@ -93,7 +103,7 @@ export const constitutions = async (req, res) => {
     const totalConstitutions = await ConstitutionModel.countDocuments({ group: groupId, published: true });
 
     const constitutions = await ConstitutionModel.find({ group: groupId, published: true })
-      .select('-body')  
+      .select('-body')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
@@ -119,11 +129,11 @@ export const manageConstitution = async (req, res) => {
 
   try {
     const constitution = await ConstitutionModel.findById(id);
-    
+
     if (!constitution) {
       return res.status(404).json({ message: "Constitution not found" });
     }
-    
+
     res.status(200).json(constitution);
   } catch (error) {
     console.error("Error fetching constitution:", error); // Log before responding
@@ -136,11 +146,11 @@ export const constitution = async (req, res) => {
 
   try {
     const constitution = await ConstitutionModel.findById(id);
-    
+
     if (!constitution) {
       return res.status(404).json({ message: "Constitution not found" });
     }
-    
+
     res.status(200).json(constitution);
   } catch (error) {
     console.error("Error fetching constitution:", error);
@@ -149,9 +159,13 @@ export const constitution = async (req, res) => {
 };
 
 export const searchConstitutions = async (req, res) => {
+  const groupId = req.user?.currentGroupId;
+  if (!groupId) {
+    return res.status(400).json({ message: "Group ID missing from token" });
+  }
+
   try {
     const { titleOrContent, date, page = 1, limit = 10 } = req.query;
-    const { id: groupId } = req.params;
 
     if (!groupId) {
       return res.status(400).json({ message: "Group ID is required." });
@@ -197,15 +211,19 @@ export const searchConstitutions = async (req, res) => {
 };
 
 export const manageSearchConstitutions = async (req, res) => {
+  const { currentGroupId } = req.user;
+
+  if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+    return res.status(400).json({ message: "Invalid IDs in token" });
+  }
   try {
     const { titleOrContent, date, page = 1, limit = 10 } = req.query;
-    const { id: groupId } = req.params;
 
-    if (!groupId) {
+    if (!currentGroupId) {
       return res.status(400).json({ message: "Group ID is required." });
     }
 
-    const query = { group: groupId };
+    const query = { group: currentGroupId };
 
     // Title or content regex
     if (titleOrContent?.trim()) {
@@ -274,58 +292,58 @@ export const updateConstitution = async (req, res) => {
 };
 
 export const deleteConstitution = async (req, res) => {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    try {
-        // Ensure the provided ID is a valid ObjectId
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ message: "Invalid constitution ID" });
-        }
-
-        // Find the constitution by ID and delete it
-        const deletedConstitution = await ConstitutionModel.findByIdAndDelete(id);
-
-        if (!deletedConstitution) {
-            return res.status(404).json({ message: "Constitution not found" });
-        }
-
-        return res.status(200).json({ message: "Constitution deleted successfully" });
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({ message: "Server error while deleting constitution" });
+  try {
+    // Ensure the provided ID is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid constitution ID" });
     }
+
+    // Find the constitution by ID and delete it
+    const deletedConstitution = await ConstitutionModel.findByIdAndDelete(id);
+
+    if (!deletedConstitution) {
+      return res.status(404).json({ message: "Constitution not found" });
+    }
+
+    return res.status(200).json({ message: "Constitution deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Server error while deleting constitution" });
+  }
 };
 
 export const deleteMultipleConstitutions = async (req, res) => {
-    const { ids } = req.body;
+  const { ids } = req.body;
 
-    try {
-        // Check if ids are provided and are in an array format
-        if (!Array.isArray(ids) || ids.length === 0) {
-            return res.status(400).json({ message: "No constitution IDs provided" });
-        }
-
-        // Ensure all provided IDs are valid ObjectIds
-        const invalidIds = ids.filter(id => !mongoose.Types.ObjectId.isValid(id));
-
-        if (invalidIds.length > 0) {
-            return res.status(400).json({ message: `Invalid IDs: ${invalidIds.join(", ")}` });
-        }
-
-        // Delete constitutions with the provided IDs
-        const deletedConstitutions = await ConstitutionModel.deleteMany({
-            _id: { $in: ids }
-        });
-
-        if (deletedConstitutions.deletedCount === 0) {
-            return res.status(404).json({ message: "No constitutions found to delete" });
-        }
-
-        return res.status(200).json({
-            message: `${deletedConstitutions.deletedCount} constitution(s) deleted successfully`,
-        });
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({ message: "Server error while deleting constitutions" });
+  try {
+    // Check if ids are provided and are in an array format
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No constitution IDs provided" });
     }
+
+    // Ensure all provided IDs are valid ObjectIds
+    const invalidIds = ids.filter(id => !mongoose.Types.ObjectId.isValid(id));
+
+    if (invalidIds.length > 0) {
+      return res.status(400).json({ message: `Invalid IDs: ${invalidIds.join(", ")}` });
+    }
+
+    // Delete constitutions with the provided IDs
+    const deletedConstitutions = await ConstitutionModel.deleteMany({
+      _id: { $in: ids }
+    });
+
+    if (deletedConstitutions.deletedCount === 0) {
+      return res.status(404).json({ message: "No constitutions found to delete" });
+    }
+
+    return res.status(200).json({
+      message: `${deletedConstitutions.deletedCount} constitution(s) deleted successfully`,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Server error while deleting constitutions" });
+  }
 };

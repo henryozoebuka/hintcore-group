@@ -21,6 +21,9 @@ import ManageConstitution from '../pages/ManageConstitution/ManageConstitution';
 import ManageEditConstitution from '../pages/ManageEditConstitution/ManageEditConstitution';
 import CreatePayment from '../pages/CreatePayment/CreatePayment';
 import ManagePayments from '../pages/ManagePayments/ManagePayments';
+import ManagePayment from '../pages/ManagePayment/ManagePayment';
+import Payments from '../pages/Payments/Payments';
+import ManageEditPayment from '../pages/ManageEditPayment/ManageEditPayment';
 
 const Stack = createStackNavigator();
 
@@ -48,6 +51,9 @@ const MainStack = () => {
 
       <Stack.Screen name="create-payment" component={CreatePayment} options={{ header: () => <Header title="Create Payment" showBack={false} /> }} />
       <Stack.Screen name="manage-payments" component={ManagePayments} options={{ header: () => <Header title="Manage Payments" showBack={false} /> }} />
+      <Stack.Screen name="manage-payment" component={ManagePayment} options={{ header: () => <Header title="Manage Payment" showBack={false} /> }} />
+      <Stack.Screen name="manage-edit-payment" component={ManageEditPayment} options={{ header: () => <Header title="Manage Edit Payment" showBack={false} /> }} />
+      <Stack.Screen name="payments" component={Payments} options={{ header: () => <Header title="Payments" showBack={false} /> }} />
     </Stack.Navigator>
   );
 };

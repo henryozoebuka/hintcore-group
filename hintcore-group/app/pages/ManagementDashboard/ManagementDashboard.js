@@ -1,34 +1,24 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { useSelector } from "react-redux";
 import styles from "../../styles/styles";
 import privateAxios from "../../utils/axios/privateAxios";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Notification from '../../components/Notification/Notification';
 import Footer from "../../components/Footer/Footer";
 
 const ManagementDashboard = ({ navigation }) => {
   const { colors } = useSelector((state) => state.colors);
   const [notification, setNotification] = useState({ visible: false, type: '', message: '' });
-  const [groupId, setGroupId] = useState('');
+  const [loading, setLoading] = useState(false);
   const [joinCode, setJoinCode] = useState('');
-
-  // 1️⃣ Fetch group ID once
-  useEffect(() => {
-    const getGroupId = async () => {
-      const storedGroupId = await AsyncStorage.getItem('currentGroupId');
-      if (storedGroupId) setGroupId(storedGroupId);
-    };
-    getGroupId();
-  }, []);
 
   // 2️⃣ Fetch group join code when groupId is available
   useEffect(() => {
-    if (!groupId) return;
 
     const fetchGroupInfo = async () => {
       try {
-        const response = await privateAxios.get(`/private/fetch-group-join-code/${groupId}`);
+        setLoading(true);
+        const response = await privateAxios.get(`/private/fetch-group-join-code`);
         if (response.status === 200) {
           setJoinCode(response.data.joinCode);
         }
@@ -42,11 +32,13 @@ const ManagementDashboard = ({ navigation }) => {
           });
         }, 3000);
         console.error(error);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchGroupInfo();
-  }, [groupId]);
+  }, []);
 
 
   return (
@@ -56,7 +48,12 @@ const ManagementDashboard = ({ navigation }) => {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={{ marginVertical: 20 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: 'bold' }}>Group Join Code:</Text>
-          <Text style={{ color: colors.primary, fontSize: 24 }}>{joinCode}</Text>
+          {loading ? 
+          <View style={{alignItems: 'center'}}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={{color: colors.text}}>Loading group join code...</Text>
+          </View> : 
+          <Text style={{ color: colors.primary, fontSize: 24 }}>{joinCode}</Text>}
         </View>
         <Text style={[styles.SETTINGS_STYLES.header, { color: colors.text }]}>
           Quick Actions
@@ -66,7 +63,7 @@ const ManagementDashboard = ({ navigation }) => {
           <Text style={{ fontSize: 18, color: colors.text }}>Manage Announcements</Text>
         </Pressable>
         <Pressable onPress={() => navigation.navigate('manage-constitutions')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
-          <Text style={{ fontSize: 18, color: colors.text }}>Manage Constitution</Text>
+          <Text style={{ fontSize: 18, color: colors.text }}>Manage Constitutions</Text>
         </Pressable>
         <Pressable onPress={() => navigation.navigate('manage-payments')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
           <Text style={{ fontSize: 18, color: colors.text }}>Manage Payments</Text>

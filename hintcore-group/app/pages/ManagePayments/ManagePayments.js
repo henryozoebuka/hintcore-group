@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import moment from "moment";
 import { useSelector } from "react-redux";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import privateAxios from "../../utils/axios/privateAxios";
 import stylesConfig from "../../styles/styles";
 import Notification from "../../components/Notification/Notification";
@@ -21,7 +20,6 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 
 const ManagePayments = ({ navigation }) => {
     const { colors } = useSelector((state) => state.colors);
-    const [groupId, setGroupId] = useState("");
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [selectedDate, setSelectedDate] = useState(null);
     const [payments, setPayments] = useState([]);
@@ -35,10 +33,9 @@ const ManagePayments = ({ navigation }) => {
     const [notification, setNotification] = useState({ visible: false, type: "", message: "" });
 
     const fetchPayments = async (pageNumber = 1) => {
-        if (!groupId) return;
         try {
             setLoading(true);
-            const response = await privateAxios.get(`/private/manage-payments/${groupId}?page=${pageNumber}`);
+            const response = await privateAxios.get(`/private/manage-payments?page=${pageNumber}`);
             setPayments(response.data.payments || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
@@ -61,7 +58,7 @@ const ManagePayments = ({ navigation }) => {
                 page: pageNumber,
             });
 
-            const response = await privateAxios.get(`/private/manage-search-payments/${groupId}?${query}`);
+            const response = await privateAxios.get(`/private/manage-search-payments?${query}`);
             setPayments(response.data.payments || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
@@ -149,25 +146,9 @@ const ManagePayments = ({ navigation }) => {
         }
     };
 
-    
     useEffect(() => {
-        const fetchGroupId = async () => {
-            const id = await AsyncStorage.getItem("currentGroupId");
-            if (!id) {
-                setNotification({ visible: true, type: "error", message: "Group ID not found." });
-                return;
-            }
-            setGroupId(id);
-        };
-
-        fetchGroupId();
+        fetchPayments(1);
     }, []);
-
-    useEffect(() => {
-        if (groupId) {
-            fetchPayments(1);
-        }
-    }, [groupId]);
 
     // Truncate title if it exceeds 25 characters
     const truncateTitle = (title) => {
@@ -304,10 +285,17 @@ const ManagePayments = ({ navigation }) => {
                                     <Text style={{ color: colors.text, fontWeight: "bold" }}>{truncateTitle(item.title)}</Text>
                                     <Text style={{ color: colors.text, textAlign: 'right' }}>{moment(item.createdAt).format('MMMM DD, YYYY')}</Text>
 
-                                    {/* Unpublished Tag */}
-                                    {!item.published && (
+                                    <View style={{flexDirection: 'row', columnGap: 10}}>
+                                        {!item.published && (
                                         <Text style={{ color: "#dc3545", fontSize: 12, marginTop: 5 }}>Unpublished</Text>
                                     )}
+                                    {!item.published && item.required && (
+                                        <Text style={{ color: "#dc3545", fontSize: 12, marginTop: 5 }}>|</Text>
+                                    )}
+                                    {item.required && (
+                                        <Text style={{ color: "#dc3545", fontSize: 12, marginTop: 5 }}> Required</Text>
+                                    )}
+                                    </View>
                                 </View>
 
                                 {/* Actions: Edit/Delete */}

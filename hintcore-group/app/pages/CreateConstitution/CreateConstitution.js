@@ -12,7 +12,6 @@ import { useSelector } from "react-redux";
 import privateAxios from "../../utils/axios/privateAxios";
 import stylesConfig from "../../styles/styles";
 import Notification from "../../components/Notification/Notification";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Footer from "../../components/Footer/Footer";
 
 const CreateConstitution = ({ navigation }) => {
@@ -23,8 +22,6 @@ const CreateConstitution = ({ navigation }) => {
   const [body, setBody] = useState("");
   const [published, setPublished] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [groupId, setGroupId] = useState("");
-  const [createdBy, setCreatedBy] = useState("");
   const [notification, setNotification] = useState({
     visible: false,
     type: "",
@@ -48,8 +45,6 @@ const CreateConstitution = ({ navigation }) => {
         title,
         body,
         published,
-        groupId,
-        createdBy,
       });
 
       if (response.status === 201) {
@@ -86,37 +81,6 @@ const CreateConstitution = ({ navigation }) => {
   const handleCancel = () => {
     navigation.goBack();
   };
-
-  useEffect(() => {
-    const fetchIds = async () => {
-      try {
-        const getGroupId = await AsyncStorage.getItem("currentGroupId");
-        const getUserId = await AsyncStorage.getItem("userId");
-
-        if (!getGroupId || !getUserId) {
-          setNotification({
-            visible: true,
-            type: "error",
-            message: "User or Group ID missing. Please try again.",
-          });
-          setTimeout(() => setNotification({ visible: false, type: "", message: "" }), 3000);
-          return;
-        }
-
-        setGroupId(getGroupId);
-        setCreatedBy(getUserId);
-      } catch (error) {
-        setNotification({
-          visible: true,
-          type: "error",
-          message: "Failed to load user or group information.",
-        });
-        setTimeout(() => setNotification({ visible: false, type: "", message: "" }), 3000);
-      }
-    };
-
-    fetchIds();
-  }, []);
 
   return (
     <KeyboardAvoidingView

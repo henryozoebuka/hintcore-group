@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import moment from "moment";
 import { useSelector } from "react-redux";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import privateAxios from "../../utils/axios/privateAxios";
 import stylesConfig from "../../styles/styles";
 import Notification from "../../components/Notification/Notification";
@@ -21,7 +20,6 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 
 const ManageAnnouncements = ({ navigation }) => {
     const { colors } = useSelector((state) => state.colors);
-    const [groupId, setGroupId] = useState("");
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [selectedDate, setSelectedDate] = useState(null);
     const [announcements, setAnnouncements] = useState([]);
@@ -34,24 +32,10 @@ const ManageAnnouncements = ({ navigation }) => {
     const [loading, setLoading] = useState(false);
     const [notification, setNotification] = useState({ visible: false, type: "", message: "" });
 
-    useEffect(() => {
-        const fetchGroupId = async () => {
-            const id = await AsyncStorage.getItem("currentGroupId");
-            if (!id) {
-                setNotification({ visible: true, type: "error", message: "Group ID not found." });
-                return;
-            }
-            setGroupId(id);
-        };
-
-        fetchGroupId();
-    }, []);
-
     const fetchAnnouncements = async (pageNumber = 1) => {
-        if (!groupId) return;
         try {
             setLoading(true);
-            const response = await privateAxios.get(`/private/manage-announcements/${groupId}?page=${pageNumber}`);
+            const response = await privateAxios.get(`/private/manage-announcements?page=${pageNumber}`);
             setAnnouncements(response.data.announcements || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
@@ -71,7 +55,7 @@ const ManageAnnouncements = ({ navigation }) => {
                 page: pageNumber,
             });
 
-            const response = await privateAxios.get(`/private/manage-search-announcements/${groupId}?${query}`);
+            const response = await privateAxios.get(`/private/manage-search-announcements?${query}`);
             setAnnouncements(response.data.announcements || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
@@ -160,10 +144,8 @@ const ManageAnnouncements = ({ navigation }) => {
     };
 
     useEffect(() => {
-        if (groupId) {
-            fetchAnnouncements(1);
-        }
-    }, [groupId]);
+        fetchAnnouncements(1);
+    }, []);
 
     // Truncate title if it exceeds 20 characters
     const truncateTitle = (title) => {

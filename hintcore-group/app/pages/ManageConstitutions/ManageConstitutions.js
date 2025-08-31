@@ -21,7 +21,6 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 
 const ManageConstitutions = ({ navigation }) => {
     const { colors } = useSelector((state) => state.colors);
-    const [groupId, setGroupId] = useState("");
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [selectedDate, setSelectedDate] = useState(null);
     const [constitutions, setConstitutions] = useState([]);
@@ -34,24 +33,10 @@ const ManageConstitutions = ({ navigation }) => {
     const [loading, setLoading] = useState(false);
     const [notification, setNotification] = useState({ visible: false, type: "", message: "" });
 
-    useEffect(() => {
-        const fetchGroupId = async () => {
-            const id = await AsyncStorage.getItem("currentGroupId");
-            if (!id) {
-                setNotification({ visible: true, type: "error", message: "Group ID not found." });
-                return;
-            }
-            setGroupId(id);
-        };
-
-        fetchGroupId();
-    }, []);
-
     const fetchConstitutions = async (pageNumber = 1) => {
-        if (!groupId) return;
         try {
             setLoading(true);
-            const response = await privateAxios.get(`/private/manage-constitutions/${groupId}?page=${pageNumber}`);
+            const response = await privateAxios.get(`/private/manage-constitutions?page=${pageNumber}`);
             setConstitutions(response.data.constitutions || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
@@ -71,7 +56,7 @@ const ManageConstitutions = ({ navigation }) => {
                 page: pageNumber,
             });
 
-            const response = await privateAxios.get(`/private/manage-search-constitutions/${groupId}?${query}`);
+            const response = await privateAxios.get(`/private/manage-search-constitutions?${query}`);
             setConstitutions(response.data.constitutions || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
@@ -160,10 +145,8 @@ const ManageConstitutions = ({ navigation }) => {
     };
 
     useEffect(() => {
-        if (groupId) {
-            fetchConstitutions(1);
-        }
-    }, [groupId]);
+        fetchConstitutions(1);
+    }, []);
 
     // Truncate title if it exceeds 20 characters
     const truncateTitle = (title) => {

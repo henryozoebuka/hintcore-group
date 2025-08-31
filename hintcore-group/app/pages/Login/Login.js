@@ -25,14 +25,11 @@ const Login = () => {
       const response = await publicAxios.post('/public/login', { email, password });
 
       if (response.status === 200) {
-        const { user, token } = response.data;
+        const { groupName, token } = response.data;
 
         await AsyncStorage.setItem('token', token);
-        await AsyncStorage.setItem('userId', user.userId);
-        await AsyncStorage.setItem('currentGroupId', user.currentGroupId);
-        await AsyncStorage.setItem('groupName', user.groupName);
-        await AsyncStorage.setItem('permissions', JSON.stringify(user.permissions));
-
+        await AsyncStorage.setItem('groupName', groupName);
+        
         // ✅ Update Redux auth state
         dispatch(setIsLoggedIn(true));
 

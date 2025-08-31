@@ -176,11 +176,15 @@ export const createGroup = async (req, res) => {
 };
 
 export const fetchGroupJoinCode = async (req, res) => {
-  const { id } = req.params;
+  const { currentGroupId } = req.user;
+  
+    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: "Invalid IDs in token" });
+    }
   try {
-    const group = await GroupModel.findById(id)
+    const group = await GroupModel.findById(currentGroupId)
       .select('joinCode');
-    if (!group) {
+    if (!currentGroupId) {
       return res.status(404).json({ message: "Group not found." });
     }
 
@@ -366,10 +370,14 @@ export const joinGroup = async (req, res) => {
 };
 
 export const groupMembers = async (req, res) => {
-  const { id } = req.params;
+  const { currentGroupId } = req.user;
+    
+      if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+          return res.status(400).json({ message: "Invalid IDs in token" });
+        }
 
   try {
-    const group = await GroupModel.findById(id)
+    const group = await GroupModel.findById(currentGroupId)
       .select('members')
       .populate('members.user', 'fullName'); // Select only needed user fields
 

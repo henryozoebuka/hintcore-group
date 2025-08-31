@@ -13,19 +13,15 @@ export default function Profile() {
   const { colors } = useSelector((state) => state.colors);
   const navigation = useNavigation();
 
-  const [userId, setUserId] = useState('');
   const [groupName, setGroupName] = useState('');
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState({ visible: false, type: '', message: '' });
   const [profile, setProfile] = useState(null);
   const [showBio, setShowBio] = useState(false);
 
-
   useEffect(() => {
     const fetchUserInfo = async () => {
-      const storedUserId = await AsyncStorage.getItem('userId');
       const storedGroupName = await AsyncStorage.getItem('groupName');
-      setUserId(storedUserId || '');
       setGroupName(storedGroupName || '');
     };
     fetchUserInfo();
@@ -33,10 +29,9 @@ export default function Profile() {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!userId) return;
       try {
-        const response = await privateAxios.get(`/private/user-profile/${userId}`);
-        setProfile(response.data.data);
+        const response = await privateAxios.get(`/private/user-profile`);
+        setProfile(response.data.user);
       } catch (err) {
         console.error('Profile fetch error:', err);
         setNotification({
@@ -50,7 +45,7 @@ export default function Profile() {
     };
 
     fetchProfile();
-  }, [userId]);
+  }, []);
 
   return (
     <View style={{ flex: 1 }}>
@@ -131,7 +126,7 @@ export default function Profile() {
           {/* Action Buttons */}
           <View style={{ paddingHorizontal: 20, marginTop: 30 }}>
             <Pressable
-              onPress={() => navigation.navigate('edit-profile', { userId: profile._id })}
+              onPress={() => navigation.navigate('edit-profile')}
               style={[stylesConfig.BUTTON, { backgroundColor: colors.primary, marginBottom: 10 }]}
             >
               <Text style={{ color: colors.mainButtonText, fontWeight: 'bold' }}>✏️ Edit Profile</Text>

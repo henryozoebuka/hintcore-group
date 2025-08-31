@@ -102,7 +102,6 @@ const ManageConstitution = ({ route, navigation }) => {
                         <View style={{ display: 'flex', flexDirection: 'row', columnGap: 5, borderBottomColor: colors.placeholder, borderBottomWidth: .5 }}>
                             <Text style={{ fontWeight: 'bold', color: colors.text  }}>Created On:</Text>
                             <Text style={{ color: colors.placeholder, marginBottom: 10 }}>{moment(constitution.createdAt).isValid() ? moment(constitution.createdAt).format('MMMM D, YYYY') : 'Invalid Date'}</Text>
-
                         </View>
 
                         <ScrollView style={{ borderBottomColor: colors.placeholder, borderBottomWidth: .5 }}>
