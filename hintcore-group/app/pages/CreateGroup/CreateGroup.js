@@ -222,7 +222,7 @@ const CreateGroup = () => {
       style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <SafeAreaView style={{backgroundColor: 'green'}}>
+      <SafeAreaView>
       <Notification visible={notification.visible} type={notification.type} message={notification.message} />
       <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20 }}>
         <View style={{ alignItems: 'center', marginBottom: 20 }}>

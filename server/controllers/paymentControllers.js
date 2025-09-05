@@ -162,6 +162,61 @@ export const payments = async (req, res) => {
   }
 };
 
+export const getPaymentDetails = async (req, res) => {
+  const paymentId = req.params.id;
+
+  if (!paymentId) {
+    return res.status(400).json({ message: 'Payment ID is required.' });
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(paymentId)) {
+    return res.status(400).json({ message: 'Invalid Payment ID format.' });
+  }
+
+  try {
+    const payment = await PaymentModel.findById(paymentId)
+      .populate('members.userId', 'fullName email') // populate user info from members
+      .populate('createdBy', 'fullName'); // populate creator's full name
+
+    if (!payment) {
+      return res.status(404).json({ message: 'Payment not found.' });
+    }
+
+    // Find the member record for the current user
+    const memberInfo = payment.members.find(
+      (member) => member.userId._id.toString() === req.user.userId
+    );
+
+    if (!memberInfo) {
+      return res.status(403).json({ message: 'You are not authorized to view this payment.' });
+    }
+
+    const userFullName = memberInfo.userId.fullName;
+    const userEmail = memberInfo.userId.email;
+    const createdByFullName = payment.createdBy?.fullName;
+
+    const response = {
+      _id: payment._id,
+      title: payment.title,
+      description: payment.description,
+      amount: payment.amount,
+      dueDate: payment.dueDate,
+      required: payment.required,
+      paid: memberInfo.paid, // show if the current user paid
+      createdBy: createdByFullName,
+      user: {
+        fullName: userFullName,
+        email: userEmail,
+      },
+    };
+
+    return res.status(200).json({ payment: response });
+  } catch (error) {
+    console.error('Error fetching payment:', error);
+    return res.status(500).json({ message: 'Server error while fetching payment.' });
+  }
+};
+
 export const managePayment = async (req, res) => {
   const paymentId = req.params.id;
   try {
@@ -171,8 +226,8 @@ export const managePayment = async (req, res) => {
 
     const payment = await PaymentModel.findById(paymentId)
       .populate('group', 'name') // Populate group name
-      .populate('members.userId', 'fullName email') // Populate member names and emails
-      .populate('createdBy', 'fullName email'); // Optional: who created the payment
+      .populate('members.userId', 'fullName') // Populate member names and emails
+      .populate('createdBy', 'fullName'); // Optional: who created the payment
 
     if (!payment) {
       return res.status(404).json({ message: 'Payment not found.' });
@@ -197,7 +252,7 @@ export const manageFetchEditPayment = async (req, res) => {
   }
 
   try {
-    // Fetch payment
+    // Fetch payment + populate members
     const payment = await PaymentModel.findOne({
       _id: id,
       group: currentGroupId,
@@ -213,24 +268,35 @@ export const manageFetchEditPayment = async (req, res) => {
       "fullName email"
     );
 
-    // Build members list
+    // Build members list with "selected" flag
     const members = allUsers.map((user) => {
       const isSelected = payment.members.some(
         (m) => m.userId && m.userId._id.toString() === user._id.toString()
       );
+      const paidStatus = payment.members.find(
+        (m) => m.userId && m.userId._id.toString() === user._id.toString()
+      )?.paid || false;
+
       return {
         _id: user._id,
         fullName: user.fullName,
         email: user.email,
         selected: isSelected,
+        paid: paidStatus,
       };
     });
 
+    // Send back full payment details
     res.status(200).json({
       payment: {
         _id: payment._id,
         title: payment.title,
+        description: payment.description,
         amount: payment.amount,
+        dueDate: payment.dueDate,
+        required: payment.required,
+        published: payment.published,
+        createdBy: payment.createdBy,
         members,
       },
     });
@@ -254,28 +320,38 @@ export const manageEditPayment = async (req, res) => {
     members = [],
   } = req.body;
 
-  const { groupId } = req.user;
+  const { currentGroupId } = req.user;
 
   try {
-    const payment = await PaymentModel.findOne({ _id: id, group: groupId });
+    // 🔹 Ensure the payment belongs to this group
+    const payment = await PaymentModel.findOne({ _id: id, group: currentGroupId });
     if (!payment) {
       return res.status(404).json({ message: 'Payment not found.' });
     }
 
-    // Validate and format members
+    // 🔹 Validate and sync members
     if (Array.isArray(members)) {
       const validUsers = await UserModel.find({ _id: { $in: members } }).select('_id');
       if (validUsers.length !== members.length) {
         return res.status(400).json({ message: 'One or more selected users are invalid.' });
       }
 
-      payment.members = members.map(userId => ({ userId }));
+      // Preserve paid status for existing members
+      const existingMap = new Map(
+        payment.members.map(m => [m.userId.toString(), m.paid])
+      );
+
+      // Rebuild members array: keep paid if existed, default false if new
+      payment.members = members.map(userId => ({
+        userId,
+        paid: existingMap.get(userId.toString()) || false,
+      }));
     }
 
-    // Update other fields
+    // 🔹 Update other fields
     if (title !== undefined) payment.title = title;
     if (description !== undefined) payment.description = description;
-    if (amount !== undefined) payment.amount = amount;
+    if (amount !== undefined) payment.amount = Number(amount);
     if (dueDate !== undefined) payment.dueDate = dueDate;
     if (required !== undefined) payment.required = required;
     if (published !== undefined) payment.published = published;
@@ -289,5 +365,183 @@ export const manageEditPayment = async (req, res) => {
   } catch (error) {
     console.error('Update Payment Error:', error);
     return res.status(500).json({ message: 'Server error while updating payment.' });
+  }
+};
+
+export const manageMarkPaymentsAsPaid = async (req, res) => {
+  const { paymentId, memberIds = [], paid = true } = req.body;
+  const { currentGroupId } = req.user;
+
+  if (
+    !mongoose.Types.ObjectId.isValid(paymentId) ||
+    !mongoose.Types.ObjectId.isValid(currentGroupId)
+  ) {
+    return res.status(400).json({ message: "Invalid payment or group ID." });
+  }
+
+  if (!Array.isArray(memberIds) || memberIds.length === 0) {
+    return res.status(400).json({ message: "Member IDs are required." });
+  }
+
+  try {
+    // Ensure the payment belongs to the current tenant (group)
+    const payment = await PaymentModel.findOne({
+      _id: paymentId,
+      group: currentGroupId,
+    });
+
+    if (!payment) {
+      return res
+        .status(403)
+        .json({ message: "You do not have permissions to update this payment." });
+    }
+
+    // Perform update scoped to this group + payment
+    const updateResult = await PaymentModel.updateOne(
+      { _id: paymentId, group: currentGroupId },
+      {
+        $set: {
+          "members.$[elem].paid": paid,
+        },
+      },
+      {
+        arrayFilters: [
+          {
+            "elem.userId": {
+              $in: memberIds.map((id) => new mongoose.Types.ObjectId(id)),
+            },
+          },
+        ],
+      }
+    );
+
+    if (updateResult.modifiedCount === 0) {
+      return res
+        .status(404)
+        .json({ message: "No members updated. Check member IDs." });
+    }
+
+    res.status(200).json({
+      message: `Updated ${updateResult.modifiedCount} member${updateResult.modifiedCount > 1 ? 's' : ''} as ${
+        paid ? "paid" : "unpaid"
+      }.`,
+    });
+  } catch (error) {
+    console.error("Error updating members payment:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+export const manageMarkPaymentsAsUnpaid = async (req, res) => {
+  const { paymentId, memberIds = [] } = req.body;
+  const { currentGroupId } = req.user;
+
+  if (
+    !mongoose.Types.ObjectId.isValid(paymentId) ||
+    !mongoose.Types.ObjectId.isValid(currentGroupId)
+  ) {
+    return res.status(400).json({ message: "Invalid payment or group ID." });
+  }
+
+  if (!Array.isArray(memberIds) || memberIds.length === 0) {
+    return res.status(400).json({ message: "Member IDs are required." });
+  }
+
+  try {
+    // Ensure the payment belongs to the current tenant (group)
+    const payment = await PaymentModel.findOne({
+      _id: paymentId,
+      group: currentGroupId,
+    });
+
+    if (!payment) {
+      return res
+        .status(403)
+        .json({ message: "You do not have permissions to update this payment." });
+    }
+
+    // Perform update scoped to this group + payment
+    const updateResult = await PaymentModel.updateOne(
+      { _id: paymentId, group: currentGroupId },
+      {
+        $set: {
+          "members.$[elem].paid": false, // force unpaid
+        },
+      },
+      {
+        arrayFilters: [
+          {
+            "elem.userId": {
+              $in: memberIds.map((id) => new mongoose.Types.ObjectId(id)),
+            },
+          },
+        ],
+      }
+    );
+
+    if (updateResult.modifiedCount === 0) {
+      return res
+        .status(404)
+        .json({ message: "No members updated. Check member IDs." });
+    }
+
+    res.status(200).json({message: `Updated ${updateResult.modifiedCount} member${updateResult.modifiedCount > 1 ? 's' : ''} as unpaid.`});
+  } catch (error) {
+    console.error("Error updating members payment:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+export const manageGetPaymentMembers = async (req, res) => {
+  const { id: paymentId } = req.params;
+  const { currentGroupId } = req.user;
+
+  if (
+    !mongoose.Types.ObjectId.isValid(paymentId) ||
+    !mongoose.Types.ObjectId.isValid(currentGroupId)
+  ) {
+    return res.status(400).json({ message: "Invalid payment or group ID." });
+  }
+
+  try {
+    // 1. Get the group and its members
+    const group = await GroupModel.findById(currentGroupId).populate("members.user", "fullName email");
+    if (!group) {
+      return res.status(404).json({ message: "Group not found." });
+    }
+
+    // 2. Get the payment document
+    const payment = await PaymentModel.findOne({
+      _id: paymentId,
+      group: currentGroupId,
+    });
+
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found for this group." });
+    }
+
+    // 3. Build response: map group members to include their payment status
+    const membersWithStatus = group.members.map((member) => {
+      const paymentRecord = payment.members.find(
+        (m) => m.userId.toString() === member.user._id.toString()
+      );
+
+      return {
+        _id: member.user._id,
+        fullName: member.user.fullName,
+        email: member.user.email,
+        memberNumber: member.memberNumber,
+        status: member.status,
+        paid: paymentRecord ? paymentRecord.paid : false, // default false if not in payment.members
+        selected: !!paymentRecord, // helpful for pre-checking in checkboxes
+      };
+    });
+
+    return res.status(200).json({
+      members: membersWithStatus,
+    });
+  } catch (error) {
+    console.error("Error fetching payment members:", error);
+    return res.status(500).json({ message: "Internal server error." });
   }
 };

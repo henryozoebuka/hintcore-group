@@ -6,6 +6,7 @@ import cors from 'cors';
 import userRouter from './routes/userRoutes.js';
 import groupRouter from './routes/groupRoutes.js';
 import announcementRouter from './routes/announcementRoutes.js';
+import minutesRouter from './routes/minutesRoutes.js';
 import constitutionRouter from './routes/constitutionRoutes.js';
 import paymentRouter from './routes/paymentRoutes.js';
 
@@ -38,6 +39,7 @@ app.options('*', cors(corsOptions)); // Preflight request handling
 app.use('/', userRouter);
 app.use('/', groupRouter);
 app.use('/', announcementRouter);
+app.use('/', minutesRouter);
 app.use('/', constitutionRouter);
 app.use('/', paymentRouter);
 

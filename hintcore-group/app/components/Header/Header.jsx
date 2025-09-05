@@ -37,8 +37,12 @@ const Header = () => {
     };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('currentGroupId');
+    await AsyncStorage.removeItem('groupName');
     dispatch(logout());
+    navigation.replace('login');
   };
 
   return (

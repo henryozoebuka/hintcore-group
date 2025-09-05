@@ -182,9 +182,9 @@ export const userProfile = async (req, res) => {
   try {
     const { userId } = req.user;
 
-  if (!mongoose.Types.ObjectId.isValid(userId)) {
-    return res.status(400).json({ message: "User ID is required" });
-  }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
 
     // 2️⃣ Fetch user and populate groups
     const user = await UserModel.findById(userId)
@@ -199,7 +199,7 @@ export const userProfile = async (req, res) => {
     }
 
     // 3️⃣ Return profile
-    res.status(200).json({user});
+    res.status(200).json({ user });
 
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -211,9 +211,9 @@ export const userProfileEdit = async (req, res) => {
   try {
     const { userId } = req.user;
 
-  if (!mongoose.Types.ObjectId.isValid(userId)) {
-    return res.status(400).json({ message: "User ID is required" });
-  }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
 
     // 2️⃣ Fetch user and populate groups
     const user = await UserModel.findById(userId)
@@ -224,7 +224,7 @@ export const userProfileEdit = async (req, res) => {
     }
 
     // 3️⃣ Return profile
-    res.status(200).json({user});
+    res.status(200).json({ user });
 
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -295,13 +295,13 @@ export const userDashboardData = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const announcements = await AnnouncementModel.find({ 
-      group: currentGroupId, 
-      published: true 
+    const announcements = await AnnouncementModel.find({
+      group: currentGroupId,
+      published: true
     })
-    .select('title createdAt')
-    .sort({ createdAt: -1 })
-    .limit(3);
+      .select('title createdAt')
+      .sort({ createdAt: -1 })
+      .limit(3);
 
     return res.status(200).json({ fullName: user.fullName, announcements });
   } catch (error) {
@@ -448,5 +448,30 @@ export const manageUsers = async (req, res) => {
   } catch (error) {
     console.error('Fetch group members failed:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const showMemberNumber = async (req, res) => {
+  try {
+    const { currentGroupId, userId } = req.user;
+
+    if (!currentGroupId || !userId) {
+      return res.status(400).json({ message: "Missing user context" });
+    }
+
+    const group = await GroupModel.findById(currentGroupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    const groupUser = group.members.find(m => m.user.equals(userId));
+    if (!groupUser) {
+      return res.status(404).json({ message: "Your membership ID not found" });
+    }
+
+    res.status(200).json({ memberNumber: groupUser.memberNumber });
+  } catch (error) {
+    console.error("Error fetching member number:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };

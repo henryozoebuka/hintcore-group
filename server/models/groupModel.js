@@ -19,11 +19,19 @@ const groupSchema = new mongoose.Schema({
         required: true, // Always tied to a real user
     },
 
+    abbreviation: { type: String },
+
+    memberCounter: { type: Number, default: 0 },
+
     members: [
         {
             user: {
                 type: mongoose.Schema.Types.ObjectId,
                 ref: "User",
+                required: true,
+            },
+            memberNumber: {
+                type: String,
                 required: true,
             },
             status: {
@@ -33,7 +41,7 @@ const groupSchema = new mongoose.Schema({
             },
             permissions: {
                 type: [String],
-                default: [], // e.g., ["manage_users", "manage_announcements"]
+                default: [],
             },
         },
     ],

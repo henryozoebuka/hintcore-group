@@ -1,7 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as jwt_decode from "jwt-decode";
-import { useEffect } from "react";
-import { useState } from "react";
+import jwt_decode from "jwt-decode";
+import { useEffect, useState } from "react";
 
 export const useAuth = () => {
   const [auth, setAuth] = useState({
@@ -20,12 +19,11 @@ export const useAuth = () => {
           return;
         }
 
-        // 👇 works with ESM in RN
-        const decoded = jwt_decode.default(token);
+        const decoded = jwt_decode(token);
 
         setAuth({
-          userId: decoded.id,
-          groupId: decoded.currentGroupId,
+          userId: decoded.userId,
+          currentGroupId: decoded.currentGroupId, // ✅ match your state naming
           permissions: decoded.permissions || [],
           isAuthenticated: true,
         });

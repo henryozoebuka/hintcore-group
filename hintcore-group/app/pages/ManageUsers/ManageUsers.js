@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Footer from "../../components/Footer/Footer";
 
 const ManageUsers = ({ navigation }) => {
-    
+
 
     const { colors } = useSelector((state) => state.colors);
 
@@ -35,6 +35,8 @@ const ManageUsers = ({ navigation }) => {
     const [totalPages, setTotalPages] = useState(1);
     const [searchMode, setSearchMode] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [partialLoading, setPartialLoading] = useState(false);
+    const [loadingInfo, setLoadingInfo] = useState("");
 
     const fetchSetUsers = async (pageNumber) => {
         try {
@@ -53,7 +55,8 @@ const ManageUsers = ({ navigation }) => {
 
     const fetchSetSearchedUsers = async (pageNumber) => {
         try {
-            setLoading(true);
+            setPartialLoading(true);
+            setLoadingInfo("Searching for Member...");
             const query = new URLSearchParams({ ...searchParams, page: pageNumber });
             const response = await privateAxios.get(`/private/manage-searched-users?${query.toString()}`);
             setUsers(response.data.users);
@@ -63,7 +66,8 @@ const ManageUsers = ({ navigation }) => {
             Alert.alert("Error", "Error fetching search results.");
             setUsers([]);
         } finally {
-            setLoading(false);
+            setPartialLoading(false);
+            setLoadingInfo();
         }
     };
 
@@ -82,7 +86,7 @@ const ManageUsers = ({ navigation }) => {
         if (!selectedUsers.length) return;
         Alert.alert(
             "Confirm Delete",
-            `Delete ${selectedUsers.length} selected user(s)?`,
+            `Delete ${selectedUsers.length} selected user${selectedUsers.length > 1 ? `s` : ''}?`,
             [
                 { text: "Cancel", style: "cancel" },
                 {
@@ -90,11 +94,16 @@ const ManageUsers = ({ navigation }) => {
                     style: "destructive",
                     onPress: async () => {
                         try {
-                            await privateAxios.post("/private/delete-users", { ids: selectedUsers });
+                            setPartialLoading(true);
+                            setLoadingInfo(`Removing ${selectedUsers.length} member${selectedUsers.length > 1 ? "s" : ""}...`);
+                            await privateAxios.post("/private/manage-remove-members", { ids: selectedUsers });
                             setSelectedUsers([]);
                             searchMode ? fetchSetSearchedUsers(currentPage) : fetchSetUsers(currentPage);
                         } catch (error) {
                             Alert.alert("Error", "Failed to delete selected users.");
+                        } finally {
+                            setPartialLoading(false);
+                            setLoadingInfo("");
                         }
                     },
                 },
@@ -110,10 +119,15 @@ const ManageUsers = ({ navigation }) => {
                 style: "destructive",
                 onPress: async () => {
                     try {
-                        await privateAxios.delete(`/private/delete-user/${userId}`);
+                        setPartialLoading(true);
+                        setLoadingInfo("Removing Member...");
+                        await privateAxios.post(`/private/manage-remove-member/${userId}`);
                         searchMode ? fetchSetSearchedUsers(currentPage) : fetchSetUsers(currentPage);
                     } catch (error) {
                         Alert.alert("Error", "Failed to delete user.");
+                    } finally {
+                        setPartialLoading(false);
+                        setLoadingInfo("");
                     }
                 },
             },
@@ -143,17 +157,21 @@ const ManageUsers = ({ navigation }) => {
             <View style={[stylesConfig.SETTINGS_STYLES.container, { backgroundColor: colors.background }]}>
                 {/* Header */}
                 <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text }]}>Manage Members</Text>
-
+                {partialLoading &&
+                    <View style={{ marginBottom: 10, flexDirection: 'row', columnGap: 10, justifyContent: 'center', alignItems: 'center' }}>
+                        <ActivityIndicator />
+                        <Text style={{ color: colors.text }}>{loadingInfo}</Text>
+                    </View>}
                 {/* Toggle search options */}
                 {users.length > 0 &&
-                <Pressable
-                    style={[styles.button, { backgroundColor: colors.primary }]}
-                    onPress={() => setSearchOptions(!searchOptions)}
-                >
-                    <Text style={{ color: colors.mainButtonText }}>
-                        {searchOptions ? "Hide Search Options" : "Show Search Options"}
-                    </Text>
-                </Pressable>}
+                    <Pressable
+                        style={[styles.button, { backgroundColor: colors.primary }]}
+                        onPress={() => setSearchOptions(!searchOptions)}
+                    >
+                        <Text style={{ color: colors.mainButtonText }}>
+                            {searchOptions ? "Hide Search Options" : "Show Search Options"}
+                        </Text>
+                    </Pressable>}
 
                 {/* Search fields */}
                 {searchOptions && (
@@ -215,23 +233,23 @@ const ManageUsers = ({ navigation }) => {
                 )}
 
                 {/* Delete selected button */}
-                {users.length > 0 && 
-                <Pressable
-                    style={[
-                        styles.button,
-                        { backgroundColor: selectedUsers.length ? "#dc3545" : colors.border },
-                    ]}
-                    onPress={confirmDeleteSelectedUsers}
-                    disabled={!selectedUsers.length}
-                >
-                    <Text style={{ color: "#fff" }}>Delete Selected Members</Text>
-                </Pressable>}
+                {users.length > 0 &&
+                    <Pressable
+                        style={[
+                            styles.button,
+                            { backgroundColor: selectedUsers.length ? "#dc3545" : colors.border },
+                        ]}
+                        onPress={confirmDeleteSelectedUsers}
+                        disabled={!selectedUsers.length}
+                    >
+                        <Text style={{ color: "#fff" }}>Delete Selected Members</Text>
+                    </Pressable>}
 
                 {/* Users list */}
                 {loading ? (
                     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                         <ActivityIndicator size="large" color={colors.primary} />
-                        <Text style={{ color: colors.mainButtonText }}>Searching for members...</Text>
+                        <Text style={{ color: colors.mainButtonText }}>Fetching members...</Text>
                     </View>
                 ) : users.length > 0 ? (
                     <FlatList

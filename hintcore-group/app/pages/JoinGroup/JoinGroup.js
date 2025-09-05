@@ -101,11 +101,10 @@ const JoinGroup = () => {
 
   const handleCompleteRegistration = async () => {
     if (!fullName.trim() || !email.trim() || !phoneNumber.trim() || !userPassword || !confirmPassword) {
-      setNotification({
-        visible: true,
-        type: 'error',
-        message: 'Please fill all fields.',
-      });
+      setNotification({visible: true, type: 'error', message: 'Please fill all fields.',});
+      setTimeout(() => {
+        setNotification({visible: false, type: '', message: '',});
+      }, 3000);
       return;
     }
 
@@ -124,6 +123,19 @@ const JoinGroup = () => {
       const response = await publicAxios.post('/public/join-group', {
         joinCode, fullName, email, phoneNumber, password: userPassword
       });
+
+      if (response.status === 200) {
+        setNotification({
+          visible: true,
+          type: 'success',
+          message: response.data.message || 'You have successfully joined the group!',
+        });
+
+        setTimeout(() => {
+          navigation.navigate('login');
+        }, 3000);
+      }
+
 
       if (response.status === 201) {
         setNotification({

@@ -1,6 +1,6 @@
 import express from 'express';
 import { checkPermissionToken } from '../middlewares/checkTokens.js';
-import { announcement, announcements, createAnnouncement, deleteAnnouncement, deleteMultipleAnnouncements, manageAnnouncement, manageAnnouncements, manageSearchAnnouncements, searchAnnouncements, updateAnnouncement } from '../controllers/announcementControllers.js';
+import { announcement, announcements, createAnnouncement, deleteAnnouncement, deleteAnnouncements, manageAnnouncement, manageAnnouncements, manageSearchAnnouncements, searchAnnouncements, updateAnnouncement } from '../controllers/announcementControllers.js';
 
 const announcementRouter = express.Router();
 
@@ -14,7 +14,7 @@ announcementRouter.get('/private/manage-search-announcements', checkPermissionTo
 announcementRouter.patch('/private/update-announcement/:id', checkPermissionToken(['admin', 'manage_announcements']), updateAnnouncement);
 
 
-announcementRouter.post('/private/delete-announcements', checkPermissionToken(['admin', 'manage_announcements']), deleteMultipleAnnouncements);
+announcementRouter.post('/private/delete-announcements', checkPermissionToken(['admin', 'manage_announcements']), deleteAnnouncements);
 announcementRouter.delete('/private/delete-announcement/:id', checkPermissionToken(['admin', 'manage_announcements']), deleteAnnouncement);
 
 export default announcementRouter;

@@ -1,4 +1,4 @@
-import AnnouncementModel from "../models/announcementModel.js";
+import MinutesModel from "../models/minutesModel.js";
 import UserModel from '../models/userModel.js';
 import nodemailer from 'nodemailer';
 import mongoose from "mongoose";
@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-export const createAnnouncement = async (req, res) => {
+export const createMinutes = async (req, res) => {
   const { title, body, published } = req.body;
   const { userId: createdBy, currentGroupId: groupId } = req.user;
 
@@ -29,7 +29,7 @@ export const createAnnouncement = async (req, res) => {
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    const newAnnouncement = await AnnouncementModel.create({
+    const newMinutes = await MinutesModel.create({
       title,
       body,
       createdBy,
@@ -37,19 +37,19 @@ export const createAnnouncement = async (req, res) => {
       group: groupId, // <-- Make sure to set 'group' field, not 'groupId'
     });
 
-    if (!newAnnouncement) {
-      return res.status(500).json({ message: 'Something went wrong while creating announcement.' });
+    if (!newMinutes) {
+      return res.status(500).json({ message: 'Something went wrong while creating minutes.' });
     }
 
-    res.status(201).json({ message: 'Announcement created successfully!' });
+    res.status(201).json({ message: 'Minutes created successfully!' });
 
   } catch (error) {
-    console.error('Error creating announcement:', error);
+    console.error('Error creating minutes:', error);
     res.status(500).json({ message: `Internal Server Error: ${error.message}` });
   }
 };
 
-export const manageAnnouncements = async (req, res) => {
+export const manageMinutesRecords = async (req, res) => {
   const { currentGroupId } = req.user;
 
   if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
@@ -65,9 +65,9 @@ export const manageAnnouncements = async (req, res) => {
 
   try {
     // Count total documents for pagination
-    const totalAnnouncements = await AnnouncementModel.countDocuments({ group: currentGroupId });
+    const totalMinutesRecords = await MinutesModel.countDocuments({ group: currentGroupId });
 
-    const announcements = await AnnouncementModel.find({ group: currentGroupId })
+    const minutesRecords = await MinutesModel.find({ group: currentGroupId })
       .select('-body')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -75,21 +75,21 @@ export const manageAnnouncements = async (req, res) => {
       .populate('createdBy', 'fullName')
       .populate('group', 'name');
 
-    const totalPages = Math.ceil(totalAnnouncements / limit);
+    const totalPages = Math.ceil(totalMinutesRecords / limit);
 
     res.status(200).json({
-      announcements,
+      minutesRecords,
       totalPages,
       currentPage: page,
     });
 
   } catch (error) {
-    console.error('Error fetching announcements:', error);
+    console.error('Error fetching minutes records:', error);
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
-export const announcements = async (req, res) => {
+export const minutesRecords = async (req, res) => {
   const groupId = req.user.currentGroupId;
   const page = parseInt(req.query.page) || 1;
   const limit = 10;
@@ -99,9 +99,9 @@ export const announcements = async (req, res) => {
   }
 
   try {
-    const totalAnnouncements = await AnnouncementModel.countDocuments({ group: groupId, published: true });
+    const totalMinutesRecords = await MinutesModel.countDocuments({ group: groupId, published: true });
 
-    const announcements = await AnnouncementModel.find({ group: groupId, published: true })
+    const minutesRecords = await MinutesModel.find({ group: groupId, published: true })
       .select('-body')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -109,55 +109,55 @@ export const announcements = async (req, res) => {
       .populate('createdBy', 'fullName')
       .populate('group', 'name');
 
-    const totalPages = Math.ceil(totalAnnouncements / limit);
+    const totalPages = Math.ceil(totalMinutesRecords / limit);
 
     res.status(200).json({
-      announcements,
+      minutesRecords,
       totalPages,
       currentPage: page,
     });
 
   } catch (error) {
-    console.error('Error fetching announcements:', error);
+    console.error('Error fetching minutes records:', error);
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
-export const manageAnnouncement = async (req, res) => {
+export const manageMinutes = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const announcement = await AnnouncementModel.findById(id);
+    const minutes = await MinutesModel.findById(id);
 
-    if (!announcement) {
-      return res.status(404).json({ message: "Announcement not found" });
+    if (!minutes) {
+      return res.status(404).json({ message: "Minutes not found" });
     }
 
-    res.status(200).json(announcement);
+    res.status(200).json(minutes);
   } catch (error) {
-    console.error("Error fetching announcement:", error); // Log before responding
-    res.status(500).json({ message: "Error fetching announcement." });
+    console.error("Error fetching minutes:", error); // Log before responding
+    res.status(500).json({ message: "Error fetching minutes." });
   }
 };
 
-export const announcement = async (req, res) => {
+export const minutes = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const announcement = await AnnouncementModel.findById(id);
+    const minutes = await MinutesModel.findById(id);
 
-    if (!announcement) {
-      return res.status(404).json({ message: "Announcement not found" });
+    if (!minutes) {
+      return res.status(404).json({ message: "Minutes not found" });
     }
 
-    res.status(200).json(announcement);
+    res.status(200).json(minutes);
   } catch (error) {
-    console.error("Error fetching announcement:", error);
-    res.status(500).json({ message: "Error fetching announcement." });
+    console.error("Error fetching minutes:", error);
+    res.status(500).json({ message: "Error fetching minutes." });
   }
 };
 
-export const searchAnnouncements = async (req, res) => {
+export const searchMinutesRecords = async (req, res) => {
   const groupId = req.user?.currentGroupId;
   if (!groupId) {
     return res.status(400).json({ message: "Group ID missing from token" });
@@ -192,24 +192,24 @@ export const searchAnnouncements = async (req, res) => {
 
     const skip = (Number(page) - 1) * Number(limit);
 
-    const [announcements, total] = await Promise.all([
-      AnnouncementModel.find(query)
+    const [minutesRecords, total] = await Promise.all([
+      MinutesModel.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(Number(limit)),
-      AnnouncementModel.countDocuments(query),
+      MinutesModel.countDocuments(query),
     ]);
 
     const totalPages = Math.ceil(total / Number(limit));
 
-    res.status(200).json({ announcements, totalPages });
+    res.status(200).json({ minutesRecords, totalPages });
   } catch (error) {
-    console.error("Search announcements failed:", error);
+    console.error("Search minutes records failed:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-export const manageSearchAnnouncements = async (req, res) => {
+export const manageSearchMinutesRecords = async (req, res) => {
 
   const { currentGroupId } = req.user;
 
@@ -244,84 +244,84 @@ export const manageSearchAnnouncements = async (req, res) => {
 
     const skip = (Number(page) - 1) * Number(limit);
 
-    const [announcements, total] = await Promise.all([
-      AnnouncementModel.find(query)
+    const [minutesRecords, total] = await Promise.all([
+      MinutesModel.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(Number(limit)),
-      AnnouncementModel.countDocuments(query),
+      MinutesModel.countDocuments(query),
     ]);
 
     const totalPages = Math.ceil(total / limit);
 
-    res.status(200).json({ announcements, totalPages });
+    res.status(200).json({ minutesRecords, totalPages });
   } catch (error) {
-    console.error("Search announcements failed:", error);
+    console.error("Search minutes records failed:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-export const updateAnnouncement = async (req, res) => {
+export const updateMinutes = async (req, res) => {
   try {
     const { id } = req.params;
     const { title, body, published } = req.body;
 
     if (!id) {
-      return res.status(400).json({ message: "Announcement ID is required" });
+      return res.status(400).json({ message: "Minutes ID is required" });
     }
 
-    const announcement = await AnnouncementModel.findById(id);
-    if (!announcement) {
-      return res.status(404).json({ message: "Announcement not found" });
+    const minutes = await MinutesModel.findById(id);
+    if (!minutes) {
+      return res.status(404).json({ message: "Minutes not found" });
     }
 
-    if (title) announcement.title = title;
-    if (body) announcement.body = body;
-    if (typeof published === "boolean") announcement.published = published;
+    if (title) minutes.title = title;
+    if (body) minutes.body = body;
+    if (typeof published === "boolean") minutes.published = published;
 
-    const updatedAnnouncement = await announcement.save();
+    const updatedMinutes = await minutes.save();
 
     res.status(200).json({
-      message: "Announcement updated successfully",
-      announcement: updatedAnnouncement,
+      message: "Minutes updated successfully",
+      minutes: updatedMinutes,
     });
 
   } catch (error) {
-    console.error("Error updating announcement:", error);
-    res.status(500).json({ message: "Server error while updating announcement" });
+    console.error("Error updating minutes:", error);
+    res.status(500).json({ message: "Server error while updating minutes" });
   }
 };
 
-export const deleteAnnouncement = async (req, res) => {
+export const deleteMinutes = async (req, res) => {
   const { id } = req.params;
 
   try {
     // Ensure the provided ID is a valid ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid announcement ID" });
+      return res.status(400).json({ message: "Invalid minutes ID" });
     }
 
-    // Find the announcement by ID and delete it
-    const deletedAnnouncement = await AnnouncementModel.findByIdAndDelete(id);
+    // Find the mminutes by ID and delete it
+    const deletedMinutes = await MinutesModel.findByIdAndDelete(id);
 
-    if (!deletedAnnouncement) {
-      return res.status(404).json({ message: "Announcement not found" });
+    if (!deletedMinutes) {
+      return res.status(404).json({ message: "Minutes not found" });
     }
 
-    return res.status(200).json({ message: "Announcement deleted successfully" });
+    return res.status(200).json({ message: "Minutes deleted successfully" });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: "Server error while deleting announcement" });
+    return res.status(500).json({ message: "Server error while deleting minutes" });
   }
 };
 
-export const deleteAnnouncements = async (req, res) => {
+export const deleteMinutesRecords = async (req, res) => {
   const { ids } = req.body;
 
   try {
     // Check if ids are provided and are in an array format
     if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ message: "No announcement IDs provided" });
+      return res.status(400).json({ message: "No minutes IDs provided" });
     }
 
     // Ensure all provided IDs are valid ObjectIds
@@ -331,20 +331,20 @@ export const deleteAnnouncements = async (req, res) => {
       return res.status(400).json({ message: `Invalid IDs: ${invalidIds.join(", ")}` });
     }
 
-    // Delete announcements with the provided IDs
-    const deletedAnnouncements = await AnnouncementModel.deleteMany({
+    // Delete minutes records with the provided IDs
+    const deletedMinutesRecords = await MinutesModel.deleteMany({
       _id: { $in: ids }
     });
 
-    if (deletedAnnouncements.deletedCount === 0) {
-      return res.status(404).json({ message: "No announcements found to delete" });
+    if (deletedMinutesRecords.deletedCount === 0) {
+      return res.status(404).json({ message: "No minutes records found to delete" });
     }
 
     return res.status(200).json({
-      message: `${deletedAnnouncements.deletedCount} announcement(s) deleted successfully`,
+      message: `${deletedMinutesRecords.deletedCount} minute record${deletedMinutesRecords.deletedCount > 1 ? 's' : ''} deleted successfully`,
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: "Server error while deleting announcements" });
+    return res.status(500).json({ message: "Server error while deleting minutes records" });
   }
 };

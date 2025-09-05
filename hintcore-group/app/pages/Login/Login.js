@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, Image, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
+import { 
+  View, Text, TextInput, Pressable, Image, 
+  KeyboardAvoidingView, Platform, ScrollView, 
+  ActivityIndicator, Keyboard 
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import Notification from '../../components/Notification/Notification';
@@ -7,7 +11,6 @@ import HONTCOREGROUPLOGO from '../../../assets/images/hintcore-group-logo.png';
 import publicAxios from '../../utils/axios/publicAxios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setIsLoggedIn } from '../../redux/slices/authSlice';
-
 
 const Login = () => {
   const navigation = useNavigation();
@@ -19,7 +22,21 @@ const Login = () => {
 
   const dispatch = useDispatch();
 
+  const showNotification = (type, message, duration = 3000) => {
+    setNotification({ visible: true, type, message });
+    setTimeout(() => {
+      setNotification({ visible: false, type: '', message: '' });
+    }, duration);
+  };
+
   const handleLogin = async () => {
+    Keyboard.dismiss();
+
+    if (!email || !password) {
+      showNotification('error', 'Please enter both email and password.');
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await publicAxios.post('/public/login', { email, password });
@@ -29,47 +46,30 @@ const Login = () => {
 
         await AsyncStorage.setItem('token', token);
         await AsyncStorage.setItem('groupName', groupName);
-        
-        // ✅ Update Redux auth state
+
         dispatch(setIsLoggedIn(true));
 
-        setNotification({
-          visible: true,
-          type: 'success',
-          message: response.data.message || 'Login successful.',
-        });
-
+        showNotification('success', response.data.message || 'Login successful.', 2000);
       }
 
       if (response.status === 202) {
-        setNotification({
-          visible: true,
-          type: 'error',
-          message: response.data.message || 'Please confirm your OTP to continue.',
-        });
+        showNotification('error', response.data.message || 'Please confirm your OTP to continue.', 2000);
 
         setTimeout(() => {
           navigation.navigate('create-group', {
             confirmOTP: true,
             userId: response.data.userId,
           });
-        }, 3000);
+        }, 2000);
       }
 
     } catch (error) {
-      if (error?.response) {
-        setNotification({
-          visible: true,
-          type: 'error',
-          message: error.response?.data?.message || 'Failed to login. Please try again.',
-        });
-        setTimeout(() => {
-          setNotification({
-            visible: false,
-            type: '',
-            message: '',
-          });
-        }, 3000);
+      if (error.response) {
+        showNotification('error', error.response?.data?.message || 'Failed to login. Please try again.');
+      } else if (error.request) {
+        showNotification('error', 'Network error. Please check your connection.');
+      } else {
+        showNotification('error', 'An unexpected error occurred.');
       }
       console.error(error);
     } finally {
@@ -124,6 +124,7 @@ const Login = () => {
             placeholder="Email"
             placeholderTextColor={colors.placeholder}
             keyboardType="email-address"
+            autoCapitalize="none"
             value={email}
             onChangeText={setEmail}
           />
@@ -165,7 +166,9 @@ const Login = () => {
             disabled={loading}
           >
             {loading && <ActivityIndicator color={colors.mainButtonText} />}
-            <Text style={{ color: colors.mainButtonText }}>{loading ? 'Logging in...' : 'Login'}</Text>
+            <Text style={{ color: colors.mainButtonText }}>
+              {loading ? 'Logging in...' : 'Login'}
+            </Text>
           </Pressable>
 
           {/* Create / Join Group */}
@@ -206,13 +209,13 @@ const Login = () => {
           </View>
 
           {/* Forgot Password */}
-          <Pressable onPress={() => navigation.navigate('register')}>
+          <Pressable onPress={() => navigation.navigate('forgot-password')}>
             <Text style={{ fontSize: 14, color: colors.primary }}>Forgot Password?</Text>
           </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
-}
+};
 
 export default Login;

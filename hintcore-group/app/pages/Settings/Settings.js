@@ -11,10 +11,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../../redux/slices/authSlice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import {
-  setDarkMode,
-  setLightMode,
-} from '../../redux/slices/colorsSlice';
+import { setDarkMode, setLightMode } from '../../redux/slices/colorsSlice';
 import privateAxios from '../../utils/axios/privateAxios';
 import Notification from '../../components/Notification/Notification';
 import Footer from '../../components/Footer/Footer';
@@ -25,10 +22,14 @@ export default function Settings() {
   const dispatch = useDispatch();
   const navigation = useNavigation();
 
-  const [userId, setUserId] = useState('');
+  const [memberNumberLoading, setMemberNumberLoading] = useState(false);
   const [groups, setGroups] = useState([]);
+  const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const [memberNumber, setMemberNumber] = useState(null);
+  const [memberNumberShown, setMemberNumberShown] = useState(false);
   const [showGroups, setShowGroups] = useState(false);
   const [loadingGroups, setLoadingGroups] = useState(false);
+  const [loadingChangingGroup, setLoadingChangingGroup] = useState(false);
   const [notification, setNotification] = useState({
     visible: false,
     type: '',
@@ -59,7 +60,60 @@ export default function Settings() {
     }
   };
 
-  const handleChangeGroup = async () => {
+  const showMemberNumber = async () => {
+    try {
+      setMemberNumberLoading(true);
+      const response = await privateAxios.get("/private/show-member-number");
+      if (response.status === 200) {
+        setMemberNumber(response.data.memberNumber);
+        setMemberNumberShown(true);
+      }
+    } catch (error) {
+      console.error("Error fetching member number: ", error)
+      if (error?.response?.data?.message) {
+        setNotification({ visible: true, type: "error", message: error.response.data.message });
+        setTimeout(() => {
+          setNotification({ visible: false, type: "", message: "" });
+        }, 3000);
+      }
+    } finally {
+      setMemberNumberLoading(false)
+    }
+  }
+
+  const handleChangeGroup = async (id) => {
+    try {
+      setSelectedGroupId(id);
+      setLoadingChangingGroup(true);
+
+      const response = await privateAxios.get(`/private/change-group/${id}`);
+
+      if (response.status === 200) {
+        const { message, token, groupName, currentGroupId } = response.data;
+
+        await AsyncStorage.setItem('token', token);
+        await AsyncStorage.setItem('groupName', groupName);
+        await AsyncStorage.setItem('currentGroupId', currentGroupId);
+
+        navigation.navigate('user-dashboard', { successMessage: message || 'You have successfully changed to a new group!' });
+      }
+      else {
+        setNotification({ visible: true, type: "error", message: "Failed to change group" });
+        setTimeout(() => {
+          setNotification({ visible: false, type: "", message: "" });
+        }, 3000);
+      }
+    } catch (error) {
+      setNotification({ visible: true, type: "error", message: error?.response?.data?.message || "Failed to change your group." });
+      setTimeout(() => {
+        setNotification({ visible: false, type: "", message: "" });
+      }, 3000);
+    } finally {
+      setLoadingChangingGroup(false);
+    }
+  };
+
+  const fetchGroups = async () => {
     try {
       setLoadingGroups(true);
       const response = await privateAxios.get(`/private/user-groups`);
@@ -67,23 +121,25 @@ export default function Settings() {
       setShowGroups(true);
     } catch (err) {
       console.error('Group fetch error:', err);
-      setNotification({
-        visible: true,
-        type: 'error',
-        message: err?.response?.data?.message || 'Unable to fetch groups.',
-      });
+      setNotification({ visible: true, type: 'error', message: err?.response?.data?.message || 'Unable to fetch groups.', });
+      setTimeout(() => {
+        setNotification({ visible: false, type: '', message: '', });
+      }, 3000);
     } finally {
       setLoadingGroups(false);
     }
   };
 
   const handleEditProfile = () => {
-    if (!userId) return;
-    navigation.navigate('edit-profile', { userId });
+    navigation.navigate('edit-profile');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('currentGroupId');
+    await AsyncStorage.removeItem('groupName');
     dispatch(logout());
+    navigation.replace('login');
   };
 
   return (
@@ -102,14 +158,14 @@ export default function Settings() {
           />
 
           {/* Header */}
-          <Text
-            style={[
-              stylesConfig.SETTINGS_STYLES.header,
-              { color: colors.text },
-            ]}
-          >
-            Settings
-          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text }]}>Settings</Text>
+            <Pressable style={[stylesConfig.BUTTON, { backgroundColor: colors.secondary }]} onPress={showMemberNumber} disabled={memberNumberShown || memberNumberLoading}>
+              {memberNumberLoading ?
+                <View style={{ flexDirection: 'row', columnGap: 10 }}><ActivityIndicator /><Text style={{ color: colors.text }}>Loading Member ID...</Text></View> :
+                <Text style={{ color: colors.text }}>{memberNumber || "Show My Member ID"}</Text>}
+            </Pressable>
+          </View>
 
           {/* ✏️ Edit Profile */}
           <Pressable
@@ -130,7 +186,7 @@ export default function Settings() {
           {/* 🔄 Change Group */}
           <Pressable
             style={[stylesConfig.BUTTON, { backgroundColor: colors.secondary }]}
-            onPress={handleChangeGroup}
+            onPress={fetchGroups}
           >
             <Text style={{ color: colors.text, fontSize: 16 }}>
               🔄 Change Group
@@ -164,22 +220,20 @@ export default function Settings() {
                         borderColor: colors.border,
                       },
                     ]}
-                    disabled={group.staus === 'inactive'}
-                    onPress={async () => {
-                      await AsyncStorage.setItem('currentGroupId', group._id);
-                      await AsyncStorage.setItem('groupNmae', group.name);
-                      setNotification({
-                        visible: true,
-                        type: 'success',
-                        message: `Switched to ${group.name}`,
-                      });
-                      setTimeout(() => {
-                        navigation.navigate('user-dashboard');
-                      }, 3000);
-                    }}
+                    disabled={group.status === 'inactive'}
+                    onPress={() => { handleChangeGroup(group._id) }}
                   >
+                    {loadingChangingGroup && (group._id === selectedGroupId) && (
+                      <View style={{ flexDirection: 'row', columnGap: 10, justifyContent: 'center', alignItems: 'center' }}>
+                        <ActivityIndicator
+                          size="small"
+                          color={colors.primary}
+                          style={{ marginVertical: 10 }}
+                        />
+                        <Text style={{ color: colors.text }}>Changing to </Text>
+                      </View>)}
                     <Text style={{ color: colors.text, fontWeight: '600' }}>
-                      {group.name}
+                      {group.name}{loadingChangingGroup && (group._id === selectedGroupId) ? "..." : null}
                     </Text>
                   </Pressable>
                 ))}
@@ -235,10 +289,10 @@ export default function Settings() {
                 stylesConfig.BUTTON,
                 { backgroundColor: colors.secondary },
               ]}
-              onPress={() => { }}
+              onPress={() => { navigation.navigate('create-another-group') }}
             >
               <Text style={{ color: colors.text }}>
-                📵 Notification Preferences
+                📵 Create Another Group
               </Text>
             </Pressable>
           </View>

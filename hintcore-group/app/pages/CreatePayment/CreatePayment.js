@@ -128,7 +128,7 @@ const CreatePayment = ({ navigation }) => {
                             {/* Title */}
                             <View style={{ borderColor: colors.border2, borderRadius: 5, borderWidth: 1, borderStyle: 'dotted' }}>
                                 <TextInput
-                                    style={[stylesConfig.INPUT, { backgroundColor: colors.inputBackground, color: colors.text, paddingBottom: 1 }]}
+                                    style={[stylesConfig.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
                                     placeholder="Enter payment title"
                                     placeholderTextColor={colors.placeholder}
                                     onChangeText={(value) => handleChange(value, 'title')}
@@ -167,7 +167,7 @@ const CreatePayment = ({ navigation }) => {
                                         groupSeparator: ',',
                                         precision: 0,
                                     }}
-                                    style={[stylesConfig.INPUT, { backgroundColor: colors.inputBackground, color: colors.text, paddingBottom: 1 }]}
+                                    style={[stylesConfig.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
                                     keyboardType="numeric"
                                     placeholder="Enter payment amount"
                                     placeholderTextColor={colors.placeholder}

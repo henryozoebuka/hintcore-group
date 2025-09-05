@@ -35,9 +35,10 @@ const ManageEditPayment = () => {
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showMembers, setShowMembers] = useState(false);
 
-    const [users, setUsers] = useState([]); // full user objects from API
-    const [selectedUsers, setSelectedUsers] = useState([]); // only selected user IDs
+    const [users, setUsers] = useState([]);        // all group members
+    const [selectedUsers, setSelectedUsers] = useState([]); // selected user IDs
     const [selectAll, setSelectAll] = useState(false);
+    const [membersLoading, setMembersLoading] = useState(false);
 
     const [payment, setPayment] = useState({
         title: '',
@@ -48,12 +49,12 @@ const ManageEditPayment = () => {
         published: false,
     });
 
-    // Fetch Payment & Members together on mount
+    // Instead of relying only on payment.members
     useEffect(() => {
         const fetchPayment = async () => {
             try {
                 setInitialLoading(true);
-                const response = await privateAxios.get(`private/manage-fetch-edit-payment/${id}`);
+                const response = await privateAxios.get(`/private/manage-fetch-edit-payment/${id}`);
                 if (response.status === 200) {
                     const p = response.data.payment;
                     const parsedDate = p.dueDate ? new Date(p.dueDate) : null;
@@ -68,12 +69,9 @@ const ManageEditPayment = () => {
                     });
 
                     if (parsedDate) setDate(parsedDate);
-
-                    // Members come as full user objects with `selected` flag
-                    setUsers(p.members);
-                    const preselected = p.members.filter(u => u.selected).map(u => u._id);
-                    setSelectedUsers(preselected);
-                    setSelectAll(preselected.length === p.members.length);
+                    // Store attached member IDs (those already linked to this payment)
+                    const attachedIds = p.members.map(m => m.userId?.toString());
+                    setSelectedUsers(attachedIds);
                 }
             } catch (e) {
                 setNotification({
@@ -88,6 +86,42 @@ const ManageEditPayment = () => {
 
         fetchPayment();
     }, [id]);
+
+    // 🔹 Fetch members only when modal is opened
+    useEffect(() => {
+        const fetchMembers = async () => {
+            if (!showMembers) return;
+
+            try {
+                setMembersLoading(true);
+                const res = await privateAxios.get(`/private/manage-get-payment-members/${id}`);
+                if (res.status === 200) {
+                    const allUsers = res.data.members;
+                    setUsers(allUsers);
+
+                    // initialize from backend "selected: true"
+                    const initiallySelected = allUsers
+                        .filter(u => u.selected)
+                        .map(u => u._id);
+
+                    setSelectedUsers(initiallySelected);
+                    setSelectAll(initiallySelected.length === allUsers.length);
+                }
+
+            } catch (e) {
+                setNotification({
+                    visible: true,
+                    type: 'error',
+                    message: e?.response?.data?.message || 'Failed to fetch members.',
+                });
+            } finally {
+                setMembersLoading(false);
+            }
+        };
+
+        fetchMembers();
+    }, [showMembers]);
+
 
     const handleChange = (key, value) => {
         setPayment((prev) => ({ ...prev, [key]: value }));
@@ -109,8 +143,8 @@ const ManageEditPayment = () => {
                 members: selectedUsers, // send only selected user IDs
             };
 
-            const res = await privateAxios.put(`private/manage-payment/${id}`, payload);
-            if (res.status === 200) {
+            const response = await privateAxios.patch(`private/manage-edit-payment/${id}`, payload);
+            if (response.status === 200) {
                 setNotification({ visible: true, type: 'success', message: 'Payment updated successfully' });
                 setTimeout(() => {
                     setNotification({ visible: false, type: '', message: '' });
@@ -131,20 +165,22 @@ const ManageEditPayment = () => {
 
     return (
         <View style={{ flex: 1 }}>
-            {initialloading ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-                    <ActivityIndicator size="large" color={colors.primary} />
-                    <Text style={{ color: colors.text }}>Loading Payment Details...</Text>
-                </View>
-            ) : (
-                <KeyboardAvoidingView
-                    style={{ flex: 1, backgroundColor: colors.background }}
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                >
-                    <View style={[stylesConfig.SETTINGS_STYLES.container, { backgroundColor: colors.background }]}>
-                        <Notification visible={notification.visible} type={notification.type} message={notification.message} />
 
-                        <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text }]}>Edit Payment</Text>
+            <KeyboardAvoidingView
+                style={{ flex: 1, backgroundColor: colors.background }}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+                <Notification visible={notification.visible} type={notification.type} message={notification.message} />
+
+                <View style={{ paddingHorizontal: 20, paddingTop: 15 }}><Text style={{ fontSize: 22, fontWeight: 'bold', color: colors.text }}>Edit Payment</Text></View>
+
+                {initialloading ? (
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+                        <ActivityIndicator size="large" color={colors.primary} />
+                        <Text style={{ color: colors.text }}>Loading Payment Details...</Text>
+                    </View>
+                ) : (
+                    <View style={[stylesConfig.SETTINGS_STYLES.container, { backgroundColor: colors.background }]}>
 
                         <ScrollView contentContainerStyle={{ alignItems: 'center', paddingBottom: 80 }}>
                             <View style={{
@@ -249,7 +285,7 @@ const ManageEditPayment = () => {
                                     }]}
                                 >
                                     <Octicons name="people" size={20} color={colors.text} />
-                                    <Text style={{ color: colors.text, marginLeft: 10 }}>Edit Members</Text>
+                                    <Text style={{ color: colors.text, marginLeft: 10 }}>Attach Payment to Members</Text>
                                 </Pressable>
 
                                 {/* Publish / Required toggles */}
@@ -302,98 +338,113 @@ const ManageEditPayment = () => {
                         {showMembers && (
                             <View style={{
                                 position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
+                                top: 0, left: 0, right: 0, bottom: 0,
                                 backgroundColor: 'rgba(0,0,0,0.6)',
                                 justifyContent: 'center',
                                 alignItems: 'center',
                                 zIndex: 99,
                             }}>
-                                <View style={{
-                                    width: '90%',
-                                    maxHeight: '80%',
-                                    backgroundColor: colors.secondary,
-                                    borderRadius: 12,
-                                    padding: 20,
-                                }}>
-                                    <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text, fontSize: 20 }]}>
-                                        Edit Members
-                                    </Text>
+                                {membersLoading ? (
+                                    <View style={{
+                                        backgroundColor: colors.secondary,
+                                        padding: 20,
+                                        borderRadius: 12,
+                                        alignItems: 'center',
+                                    }}>
+                                        <ActivityIndicator size="large" color={colors.primary} />
+                                        <Text style={{ color: colors.text, marginTop: 10 }}>Loading Members...</Text>
+                                    </View>
+                                ) : (
+                                    <View style={{
+                                        width: '90%',
+                                        maxHeight: '80%',
+                                        backgroundColor: colors.secondary,
+                                        borderRadius: 12,
+                                        padding: 20,
+                                    }}>
+                                        <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text, fontSize: 20 }]}>
+                                            Attach Payments to Members
+                                        </Text>
 
-                                    {/* Select All */}
-                                    <Pressable
-                                        onPress={() => {
-                                            if (selectAll) {
-                                                setSelectedUsers([]);
-                                                setSelectAll(false);
-                                            } else {
-                                                setSelectedUsers(users.map(u => u._id));
-                                                setSelectAll(true);
-                                            }
-                                        }}
-                                        style={[stylesConfig.CARD, { backgroundColor: colors.inputBackground, borderColor: colors.border2 }]}
-                                    >
-                                        <View
-                                            style={[
-                                                stylesConfig.CHECKBOX,
-                                                {
-                                                    borderColor: colors.text,
-                                                    backgroundColor: selectAll ? colors.primary : 'transparent',
-                                                },
-                                            ]}
-                                        />
-                                        <Text style={{ color: colors.text, fontSize: 16 }}>Select All</Text>
-                                    </Pressable>
+                                        {/* Select All */}
+                                        <Pressable
+                                            onPress={() => {
+                                                if (selectAll) {
+                                                    setSelectedUsers([]);
+                                                    setSelectAll(false);
+                                                } else {
+                                                    setSelectedUsers(users.map(u => u._id));
+                                                    setSelectAll(true);
+                                                }
+                                            }}
+                                            style={[stylesConfig.CARD, { backgroundColor: colors.inputBackground, borderColor: colors.border2 }]}
+                                        >
+                                            <View
+                                                style={[
+                                                    stylesConfig.CHECKBOX,
+                                                    {
+                                                        borderColor: colors.text,
+                                                        backgroundColor: selectAll ? colors.primary : 'transparent',
+                                                    },
+                                                ]}
+                                            />
+                                            <Text style={{ color: colors.text, fontSize: 16 }}>Select All</Text>
+                                        </Pressable>
 
-                                    {/* Individual Members */}
-                                    <ScrollView style={{ maxHeight: 300, marginTop: 10 }}>
-                                        {users.map((user) => {
-                                            const isSelected = selectedUsers.includes(user._id);
-                                            return (
-                                                <Pressable
-                                                    key={user._id}
-                                                    onPress={() => {
-                                                        const updated = isSelected
-                                                            ? selectedUsers.filter(id => id !== user._id)
-                                                            : [...selectedUsers, user._id];
-                                                        setSelectedUsers(updated);
-                                                        setSelectAll(updated.length === users.length);
-                                                    }}
-                                                    style={[stylesConfig.CARD, {
-                                                        backgroundColor: colors.inputBackground,
-                                                        borderColor: colors.border2,
-                                                        marginBottom: 8,
-                                                    }]}
-                                                >
-                                                    <View
-                                                        style={[
-                                                            stylesConfig.CHECKBOX,
-                                                            {
-                                                                borderColor: colors.text,
-                                                                backgroundColor: isSelected ? colors.primary : 'transparent',
-                                                            },
-                                                        ]}
-                                                    />
-                                                    <Text style={{ color: colors.text }}>{user.fullName}</Text>
-                                                </Pressable>
-                                            );
-                                        })}
-                                    </ScrollView>
+                                        {/* Members List */}
+                                        <ScrollView style={{ maxHeight: 300, marginTop: 10 }}>
+                                            {users.map((user) => {
+                                                const isSelected = selectedUsers.includes(user._id);
+                                                return (
+                                                    <Pressable
+                                                        key={user._id}
+                                                        onPress={() => {
+                                                            let updated;
+                                                            if (isSelected) {
+                                                                updated = selectedUsers.filter(id => id !== user._id);
+                                                            } else {
+                                                                updated = [...selectedUsers, user._id];
+                                                            }
+                                                            setSelectedUsers(updated);
+                                                            setSelectAll(updated.length === users.length);
+                                                        }}
+                                                        style={[stylesConfig.CARD, {
+                                                            backgroundColor: colors.inputBackground,
+                                                            borderColor: colors.border2,
+                                                            marginBottom: 8,
+                                                        }]}
+                                                    >
+                                                        <View
+                                                            style={[
+                                                                stylesConfig.CHECKBOX,
+                                                                {
+                                                                    borderColor: colors.text,
+                                                                    backgroundColor: isSelected ? colors.primary : 'transparent',
+                                                                },
+                                                            ]}
+                                                        />
+                                                        <Text style={{ color: colors.text }}>{user.fullName}</Text>
+                                                    </Pressable>
+                                                );
+                                            })}
 
-                                    <Pressable
-                                        onPress={() => setShowMembers(false)}
-                                        style={[stylesConfig.BUTTON, { backgroundColor: colors.primary, marginTop: 20 }]}
-                                    >
-                                        <Text style={{ color: colors.mainButtonText, fontWeight: '600' }}>Done</Text>
-                                    </Pressable>
-                                </View>
+                                        </ScrollView>
+
+                                        <Pressable
+                                            onPress={() => setShowMembers(false)}
+                                            style={[stylesConfig.BUTTON, { backgroundColor: colors.primary, marginTop: 20 }]}
+                                        >
+                                            <Text style={{ color: colors.mainButtonText, fontWeight: '600' }}>Done</Text>
+                                        </Pressable>
+                                    </View>
+                                )}
                             </View>
                         )}
+
                     </View>
-                </KeyboardAvoidingView>
-            )}
+                )}
+            </KeyboardAvoidingView>
+
             <Footer />
         </View>
     );
