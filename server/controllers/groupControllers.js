@@ -336,7 +336,7 @@ export const changeGroup = async (req, res) => {
     const userData = user.groups.find(
       (gp) => gp.group.toString() === newGroup._id.toString()
     );
-    
+
     const userPermissions = userData?.permissions ?? [];
 
     // generate token
@@ -361,6 +361,131 @@ export const changeGroup = async (req, res) => {
   } catch (error) {
     console.error("Change Group Error:", error);
     return res.status(500).json({ message: "Internal server error while changing group." });
+  }
+};
+
+export const groupInformation = async (req, res) => {
+  try {
+    const { userId, currentGroupId } = req.user;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(userId) ||
+      !mongoose.Types.ObjectId.isValid(currentGroupId)
+    ) {
+      return res.status(400).json({ message: "Invalid IDs in token" });
+    }
+
+    // Fetch group with selected fields, excluding members
+    const group = await GroupModel.findById(currentGroupId)
+      .select("-members -groupPassword") // ⛔ exclude sensitive fields
+      .populate("createdBy", "fullName email") // Include only necessary user fields
+      .lean();
+
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    // Get notificationsEnabled status for current user
+    const groupDoc = await GroupModel.findById(currentGroupId).select("members");
+    const userMember = groupDoc.members.find(
+      (m) => m.user.toString() === userId.toString()
+    );
+
+    const groupNotificationsStatus = userMember?.notificationsEnabled ?? false;
+
+    return res.status(200).json({
+      group,
+      groupNotificationsStatus
+    });
+
+
+  } catch (error) {
+    console.error("Fetch Group Information Error:", error);
+    return res.status(500).json({
+      message: "Internal server error while fetching group information.",
+    });
+  }
+};
+
+export const manageGetGroupInformationUpdate = async (req, res) => {
+  try {
+    const currentGroupId = req.user.currentGroupId;
+
+    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: "Invalid group ID" });
+    }
+
+    // find group
+    const group = await GroupModel.findById(currentGroupId).select('name description').lean();
+
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    return res.status(200).json({ group });
+
+  } catch (error) {
+    console.error("Fetch Group Information Error:", error);
+    return res.status(500).json({ message: "Internal server error while fetchin group information." });
+  }
+};
+
+export const manageUpdateGroupInformation = async (req, res) => {
+  try {
+    const currentGroupId = req.user.currentGroupId;
+
+    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: "Invalid group ID" });
+    }
+
+    const {
+      name,
+      description,
+      oldGroupPassword,
+      groupPassword,
+    } = req.body;
+
+    // Find the group created by this user (assuming one group per creator, or adjust to find by id)
+    const group = await GroupModel.findById(currentGroupId).select('+groupPassword');
+
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found or you do not have permission.' });
+    }
+
+    // Validate required fields
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+      return res.status(400).json({ message: 'Group name is required.' });
+    }
+
+    // If password change is requested, validate old password and hash new password
+    if (oldGroupPassword || groupPassword) {
+      if (!oldGroupPassword || !groupPassword) {
+        return res.status(400).json({ message: 'Both old and new group passwords are required for password change.' });
+      }
+
+      // Compare old password with stored hash
+      const isMatch = await bcrypt.compare(oldGroupPassword, group.groupPassword);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Current group password is incorrect.' });
+      }
+
+      // Hash new password before saving
+      const salt = await bcrypt.genSalt(10);
+      const hashedNewPassword = await bcrypt.hash(groupPassword, salt);
+
+      group.groupPassword = hashedNewPassword;
+    }
+
+    // Update name and description
+    group.name = name.trim();
+    group.description = description?.trim() || '';
+
+    await group.save();
+
+    return res.status(200).json({ message: 'Group updated successfully' });
+  } catch (error) {
+    console.error('Update group error:', error);
+    return res.status(500).json({ message: 'Server error. Please try again later.' });
   }
 };
 
@@ -734,6 +859,47 @@ export const manageRemoveMembers = async (req, res) => {
     return res
       .status(500)
       .json({ message: "Internal server error during group members removal." });
+  }
+};
+
+export const toggleGroupNotifications = async (req, res) => {
+  try {
+    const { userId, currentGroupId } = req.user;
+    const { enabled } = req.body;
+
+    // Validate input
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ message: 'Invalid value for enabled. Must be boolean.' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: "Invalid user or group ID." });
+    }
+
+    // Update the member's notificationsEnabled field inside the group document
+    const group = await GroupModel.findOneAndUpdate(
+      {
+        _id: currentGroupId,
+        'members.user': userId,
+      },
+      {
+        $set: { 'members.$.notificationsEnabled': enabled },
+      },
+      { new: true }
+    );
+
+    if (!group) {
+      return res.status(404).json({ message: 'Group or member not found.' });
+    }
+
+    return res.status(200).json({
+      message: `Group notifications ${enabled ? 'enabled' : 'disabled'}.`,
+      notificationsEnabled: enabled,
+    });
+
+  } catch (error) {
+    console.error('Error toggling group notifications:', error);
+    return res.status(500).json({ message: 'Internal server error.' });
   }
 };
 

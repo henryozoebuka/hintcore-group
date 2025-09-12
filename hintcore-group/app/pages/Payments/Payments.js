@@ -47,7 +47,7 @@ const Payments = ({ navigation }) => {
             setCurrentPage(pageNumber);
         } catch (error) {
             showError(error?.response?.data?.message || "Failed to fetch payments.");
-            console.error(error);
+            if (__DEV__) console.error(error);
         } finally {
             setLoading(false);
         }

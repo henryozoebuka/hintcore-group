@@ -28,8 +28,11 @@ export default function Settings() {
   const [memberNumber, setMemberNumber] = useState(null);
   const [memberNumberShown, setMemberNumberShown] = useState(false);
   const [showGroups, setShowGroups] = useState(false);
+  const [showNotificationsStatus, setShowNotificationsStatus] = useState(false);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [loadingChangingGroup, setLoadingChangingGroup] = useState(false);
+  const [changeGlobalNotificationsLoading, setChangeGlobalNotificationsLoading] = useState(false);
+  const [globalNotificationsEnabled, setGlobalNotificationsEnabled] = useState(false);
   const [notification, setNotification] = useState({
     visible: false,
     type: '',
@@ -69,7 +72,9 @@ export default function Settings() {
         setMemberNumberShown(true);
       }
     } catch (error) {
-      console.error("Error fetching member number: ", error)
+      if (__Dev__) {
+        console.error("Error fetching member number: ", error)
+      }
       if (error?.response?.data?.message) {
         setNotification({ visible: true, type: "error", message: error.response.data.message });
         setTimeout(() => {
@@ -120,7 +125,7 @@ export default function Settings() {
       setGroups(response.data.groups || []);
       setShowGroups(true);
     } catch (err) {
-      console.error('Group fetch error:', err);
+      if (__Dev__) {console.error('Group fetch error:', err);}
       setNotification({ visible: true, type: 'error', message: err?.response?.data?.message || 'Unable to fetch groups.', });
       setTimeout(() => {
         setNotification({ visible: false, type: '', message: '', });
@@ -129,6 +134,58 @@ export default function Settings() {
       setLoadingGroups(false);
     }
   };
+
+  const handleToggleGlobalNotifications = async (value) => {
+    if (changeGlobalNotificationsLoading) return;
+
+    setGlobalNotificationsEnabled(value); // optimistic UI update
+
+    try {
+      setChangeGlobalNotificationsLoading(true);
+      const response = await privateAxios.patch('/private/toggle-global-notifications', { enabled: value })
+      setGlobalNotificationsEnabled(response.data.globalNotificationsEnabled); // update with actual backend value
+      setNotification({
+        visible: true,
+        type: 'success',
+        message: response.data.message || `Global notifications updated.`,
+      });
+      setTimeout(() => setNotification({ visible: false, type: '', message: '' }), 3000);
+
+    } catch (error) {
+      setNotification({
+        visible: true,
+        type: 'error',
+        message: 'Failed to update notification settings.',
+      });
+      setTimeout(() => setNotification({ visible: false, type: '', message: '' }), 3000);
+    } finally {
+      setChangeGlobalNotificationsLoading(false);
+    }
+  };
+
+  const fetchGlobalNotificationsStatus = async () => {
+    try {
+      if (changeGlobalNotificationsLoading) return;
+      setChangeGlobalNotificationsLoading(true);
+
+      const response = await privateAxios.get('/private/fetch-global-notifications-status');
+      if (response.status === 200) {
+        setGlobalNotificationsEnabled(response.data.globalNotificationsStatus);
+      }
+    } catch (error) {
+      if (__Dev__) {
+        console.error("Error fetching global notifications status: ", error)
+      }
+      if (error?.response?.data?.message) {
+        setNotification({ visible: true, type: "error", message: error.response.data.message });
+        setTimeout(() => {
+          setNotification({ visible: false, type: "", message: "" });
+        }, 3000);
+      }
+    } finally {
+      setChangeGlobalNotificationsLoading(false);
+    }
+  }
 
   const handleEditProfile = () => {
     navigation.navigate('edit-profile');
@@ -139,7 +196,6 @@ export default function Settings() {
     await AsyncStorage.removeItem('currentGroupId');
     await AsyncStorage.removeItem('groupName');
     dispatch(logout());
-    navigation.replace('login');
   };
 
   return (
@@ -295,7 +351,83 @@ export default function Settings() {
                 📵 Create Another Group
               </Text>
             </Pressable>
+
+            {/* {showNotificationsStatus ?
+              <View style={{ marginBottom: 20, alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: colors.text, fontSize: 16, flexShrink: 1, }}>
+                  Get notifications from Hintcore News
+                </Text>
+
+                {changeGlobalNotificationsLoading ?
+                  <ActivityIndicator /> :
+                  <Switch
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor={globalNotificationsEnabled ? colors.mainButtonText : colors.placeholder}
+                    ios_backgroundColor="#3e3e3e"
+                    onValueChange={handleToggleGlobalNotifications}
+                    value={globalNotificationsEnabled}
+                  />}
+
+              </View> :
+              <Pressable
+                style={[
+                  stylesConfig.BUTTON,
+                  { backgroundColor: colors.secondary },
+                ]}
+                onPress={() => { setShowNotificationsStatus(true); fetchGlobalNotificationsStatus() }}
+              >
+                <Text style={{ color: colors.text }}>
+                  📵 Manage Hintcore Notifications
+                </Text>
+              </Pressable>} */}
+
+            {showNotificationsStatus ? (
+              <View
+                style={{
+                  marginBottom: 20,
+                  alignItems: 'center',
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <Text style={{ color: colors.text, fontSize: 16, flexShrink: 1 }}>
+                  Get notifications from Hintcore News
+                </Text>
+
+                {/* ✅ Wait until loading is done before showing switch */}
+                {changeGlobalNotificationsLoading ? (
+                  <ActivityIndicator />
+                ) : (
+                  <Switch
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor={
+                      globalNotificationsEnabled
+                        ? colors.mainButtonText
+                        : colors.placeholder
+                    }
+                    ios_backgroundColor="#3e3e3e"
+                    onValueChange={handleToggleGlobalNotifications}
+                    value={globalNotificationsEnabled}
+                  />
+                )}
+              </View>
+            ) : (
+              <Pressable
+                style={[
+                  stylesConfig.BUTTON,
+                  { backgroundColor: colors.secondary },
+                ]}
+                onPress={() => {
+                  setShowNotificationsStatus(true);
+                  fetchGlobalNotificationsStatus();
+                }}
+              >
+                <Text style={{ color: colors.text }}>📵 Manage Hintcore Notifications</Text>
+              </Pressable>
+            )}
+
           </View>
+
 
           {/* 🚪 Logout */}
           <Pressable

@@ -43,7 +43,7 @@ const ManagePayments = ({ navigation }) => {
             if (error?.response?.data?.message) {
                 showError(error?.response?.data?.message || "Failed to fetch payments.");
             }
-            console.error(error)
+            if (__DEV__) console.error(error)
         } finally {
             setLoading(false);
         }
@@ -266,7 +266,7 @@ const ManagePayments = ({ navigation }) => {
                         renderItem={({ item }) => (
                             <Pressable
                                 style={[stylesConfig.CARD, { borderColor: colors.border, backgroundColor: colors.secondary }]}
-                                onPress={() => navigation.navigate("manage-payment", { id: item._id })}
+                                onPress={() => navigation.navigate("manage-payment", { id: item._id, paymentType: item?.type === 'required' ? 'Payment' : item?.type })}
                             >
                                 {/* Checkbox */}
                                 <Pressable
@@ -289,12 +289,12 @@ const ManagePayments = ({ navigation }) => {
                                         {!item.published && (
                                         <Text style={{ color: "#dc3545", fontSize: 12, marginTop: 5 }}>Unpublished</Text>
                                     )}
-                                    {!item.published && item.required && (
+                                    {!item.published && item.type && (
                                         <Text style={{ color: "#dc3545", fontSize: 12, marginTop: 5 }}>|</Text>
                                     )}
-                                    {item.required && (
-                                        <Text style={{ color: "#dc3545", fontSize: 12, marginTop: 5 }}> Required</Text>
-                                    )}
+                                    {/* {item.required && ( */}
+                                        <Text style={{ color: "#dc3545", fontSize: 12, marginTop: 5, }}> {item.type[0].toUpperCase() + item.type.slice(1)}</Text>
+                                    {/* )} */}
                                     </View>
                                 </View>
 
@@ -302,7 +302,7 @@ const ManagePayments = ({ navigation }) => {
                                 <View style={{ flexDirection: "row" }}>
                                     <Pressable
                                         style={[stylesConfig.SMALL_BUTTON]}
-                                        onPress={() => navigation.navigate("manage-edit-payment", { id: item._id })}
+                                        onPress={() => navigation.navigate("manage-edit-payment", { id: item._id, paymentType: item.type === 'required' ? 'Payment' : item.type })}
                                     >
                                         <Ionicons name="create-outline" size={24} color="#007bff" />
                                     </Pressable>

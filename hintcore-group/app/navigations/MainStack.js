@@ -32,6 +32,8 @@ import ManageMinutesRecords from '../pages/ManageMinutesRecords/ManageMinutesRec
 import ManageMinutes from '../pages/ManageMinutes/ManageMinutes';
 import CreateMinutes from '../pages/CreateMinutes/CreateMinutes';
 import ManageEditMinutes from '../pages/ManageEditMinutes/ManageEditMinutes';
+import GroupInformation from '../pages/GroupInformation/GroupInformation';
+import ManageEditGroupInformation from '../pages/ManageEditGroupInformation/ManageEditGroupInformation';
 
 const Stack = createStackNavigator();
 
@@ -39,6 +41,8 @@ const MainStack = () => {
   return (
     <Stack.Navigator initialRouteName="user-dashboard">
       <Stack.Screen name="create-another-group" component={CreateAnotherGroup} options={{ header: () => <Header title="Create Another Group" showBack={false} /> }} />
+      <Stack.Screen name="group-information" component={GroupInformation} options={{ header: () => <Header title="Group Information" showBack={false} /> }} />
+      <Stack.Screen name="manage-edit-group-information" component={ManageEditGroupInformation} options={{ header: () => <Header title="Manage Edit Group Information" showBack={false} /> }} />
       
       <Stack.Screen name="settings" component={Settings} options={{ header: () => <Header title="Settings" showBack={false} /> }} />
       <Stack.Screen name="profile" component={Profile} options={{ header: () => <Header title="My Profile" showBack={false} /> }} />

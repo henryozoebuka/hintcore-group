@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { type } from 'os';
 
 const userGroupSchema = new mongoose.Schema({
     group: {
@@ -16,7 +17,8 @@ const userGroupSchema = new mongoose.Schema({
     permissions: {
         type: [String],
         default: [] // e.g., ["manage_users", "manage_announcements"]
-    }
+    },
+    
 }, { _id: false });
 
 const userSchema = new mongoose.Schema({
@@ -80,7 +82,22 @@ const userSchema = new mongoose.Schema({
     OTPNumberOfAttempts: {
         type: Number,
         default: 0
-    }
+    },
+
+    OTPBlockedUntil: {
+        type: Date,
+        default: null,
+    },
+
+    globalNotificationsEnabled: {
+        type: Boolean,
+        default: false,
+    },
+
+    deviceTokens: {
+        type: [String],
+        default: [],
+    },
 
 }, { timestamps: true });
 

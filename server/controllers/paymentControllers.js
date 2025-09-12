@@ -5,11 +5,11 @@ import nodemailer from 'nodemailer';
 import mongoose from "mongoose";
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL,
-        pass: process.env.EMAIL_PASS
-    }
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL,
+    pass: process.env.EMAIL_PASS
+  }
 });
 
 export const createPayment = async (req, res) => {
@@ -20,54 +20,62 @@ export const createPayment = async (req, res) => {
     members = [],
     dueDate,
     published = false,
-    required = false,
+    type = 'required',
   } = req.body;
 
-  const { userId, currentGroupId} = req.user;
+  const { userId, currentGroupId } = req.user;
 
   if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(currentGroupId)) {
     return res.status(400).json({ message: "Invalid IDs in token" });
   }
 
-  // Validate required fields
-  if (!currentGroupId || !title || !description || !amount || !userId) {
+  if (!title || !description || !type) {
     return res.status(400).json({
-      message: "Group, title, description, amount, and createdBy are required.",
+      message: "Title, description, and type are required.",
     });
   }
 
+  if (type === 'required' && !amount) {
+    return res.status(400).json({ message: "Amount is required for required and contribution types." });
+  }
+
   try {
-    // Optional: Verify group exists
     const groupExists = await GroupModel.findById(currentGroupId);
     if (!groupExists) {
       return res.status(404).json({ message: "Group not found." });
     }
 
-    // Optional: Verify that provided member IDs are valid
     let formattedMembers = [];
     if (Array.isArray(members) && members.length > 0) {
-      const validUsers = await UserModel.find({ _id: { $in: members } }).select('_id');
-      if (validUsers.length !== members.length) {
-        return res.status(400).json({
-          message: "One or more selected users are invalid.",
-        });
+      // If member input contains userId + amountPaid, validate both
+      const userIds = members.map(m => m.userId || m); // support both formats
+      const validUsers = await UserModel.find({ _id: { $in: userIds } }).select('_id');
+      if (validUsers.length !== userIds.length) {
+        return res.status(400).json({ message: "One or more selected users are invalid." });
       }
 
-      formattedMembers = members.map(userId => ({ userId }));
+      formattedMembers = members.map((member) => {
+        if (typeof member === 'object') {
+          return {
+            userId: member.userId,
+            amountPaid: member.amountPaid || 0,
+          };
+        }
+        return { userId: member };
+      });
     }
 
     const paymentData = {
       group: currentGroupId,
       title,
       description,
-      amount: Number(amount),
+      type,
       createdBy: userId,
       members: formattedMembers,
       published,
-      required,
     };
 
-    // Add optional fields if provided
+    if (amount) paymentData.amount = Number(amount);
     if (dueDate) paymentData.dueDate = dueDate;
 
     const newPayment = new PaymentModel(paymentData);
@@ -88,30 +96,33 @@ export const managePayments = async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
     return res.status(400).json({ message: "Invalid IDs in token" });
   }
+
   const page = parseInt(req.query.page) || 1;
   const limit = 10;
 
-  if (!currentGroupId) {
-    return res.status(400).json({ message: 'Group ID is required.' });
-  }
-
   try {
-    // Count total documents for pagination
-    const totalPayments = await PaymentModel.countDocuments({ group: currentGroupId });
+    const filter = { group: currentGroupId };
 
-    // Fetch payments with pagination
-    const payments = await PaymentModel.find({ group: currentGroupId })
-      .select('-description') // Optional: exclude large field for summary view
+    // Count total payments for pagination
+    const totalPayments = await PaymentModel.countDocuments(filter);
+
+    // Fetch paginated payments
+    const payments = await PaymentModel.find(filter)
+      .select('title type published createdAt') // Exclude heavy field
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .populate('createdBy', 'fullName')
-      .populate('group', 'name');
+
+    // Optional: Map type to 'required' boolean for legacy frontend
+    const mappedPayments = payments.map(payment => ({
+      ...payment.toObject(),
+      required: payment.type === 'required', // Legacy compatibility
+    }));
 
     const totalPages = Math.ceil(totalPayments / limit);
 
     res.status(200).json({
-      payments,
+      payments: mappedPayments,
       totalPages,
       currentPage: page,
     });
@@ -123,30 +134,46 @@ export const managePayments = async (req, res) => {
 };
 
 export const payments = async (req, res) => {
-  const { currentGroupId } = req.user;
+  const { userId, currentGroupId } = req.user;
 
-  if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+  if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(currentGroupId)) {
     return res.status(400).json({ message: "Invalid IDs in token" });
   }
+
   const page = parseInt(req.query.page) || 1;
   const limit = 10;
 
-  if (!currentGroupId) {
-    return res.status(400).json({ message: 'Group ID is required.' });
-  }
-
   try {
-    // Count total documents for pagination
-    const totalPayments = await PaymentModel.countDocuments({ group: currentGroupId, published: true });
+    // Count total published payments in the group
+    const totalPayments = await PaymentModel.countDocuments({
+      group: currentGroupId,
+      published: true,
+    });
 
-    // Fetch payments with pagination
-    const payments = await PaymentModel.find({ group: currentGroupId, published: true })
-      .select('-description') // Optional: exclude large field for summary view
+    // Fetch only necessary fields
+    const rawPayments = await PaymentModel.find({
+      group: currentGroupId,
+      published: true,
+    })
+      .select('title required createdAt members') // only select needed fields
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
-      .limit(limit)
-      .populate('createdBy', 'fullName')
-      .populate('group', 'name');
+      .limit(limit);
+
+    // Format payments to include only relevant user info
+    const payments = rawPayments.map(payment => {
+      const userPayment = payment.members.find(member =>
+        member.userId?.toString() === userId.toString()
+      );
+
+      return {
+        _id: payment._id,
+        title: payment.title,
+        required: payment.required,
+        paid: userPayment ? userPayment.paid : false,
+        createdAt: payment.createdAt,
+      };
+    });
 
     const totalPages = Math.ceil(totalPayments / limit);
 
@@ -155,7 +182,6 @@ export const payments = async (req, res) => {
       totalPages,
       currentPage: page,
     });
-
   } catch (error) {
     console.error('Error fetching payments:', error);
     res.status(500).json({ message: 'Internal server error.' });
@@ -164,17 +190,18 @@ export const payments = async (req, res) => {
 
 export const getPaymentDetails = async (req, res) => {
   const paymentId = req.params.id;
+  const { currentGroupId } = req.user;
 
   if (!paymentId) {
     return res.status(400).json({ message: 'Payment ID is required.' });
   }
 
-  if (!mongoose.Types.ObjectId.isValid(paymentId)) {
-    return res.status(400).json({ message: 'Invalid Payment ID format.' });
+  if ((!mongoose.Types.ObjectId.isValid(paymentId)) || (!mongoose.Types.ObjectId.isValid(currentGroupId))) {
+    return res.status(400).json({ message: 'Invalid ID(s) format.' });
   }
 
   try {
-    const payment = await PaymentModel.findById(paymentId)
+    const payment = await PaymentModel.findOne({ _id: paymentId, group: currentGroupId })
       .populate('members.userId', 'fullName email') // populate user info from members
       .populate('createdBy', 'fullName'); // populate creator's full name
 
@@ -219,24 +246,77 @@ export const getPaymentDetails = async (req, res) => {
 
 export const managePayment = async (req, res) => {
   const paymentId = req.params.id;
-  try {
-    if (!paymentId) {
-      return res.status(400).json({ message: 'Payment ID is required.' });
-    }
+  const { currentGroupId } = req.user;
 
-    const payment = await PaymentModel.findById(paymentId)
-      .populate('group', 'name') // Populate group name
-      .populate('members.userId', 'fullName') // Populate member names and emails
-      .populate('createdBy', 'fullName'); // Optional: who created the payment
+  if (!paymentId) {
+    return res.status(400).json({ message: "Payment ID is required." });
+  }
+
+  if (
+    !mongoose.Types.ObjectId.isValid(paymentId) ||
+    !mongoose.Types.ObjectId.isValid(currentGroupId)
+  ) {
+    return res.status(400).json({ message: "Invalid ID(s) format." });
+  }
+
+  try {
+    const payment = await PaymentModel.findOne({
+      _id: paymentId,
+      group: currentGroupId,
+    })
+      .populate("group", "name")
+      .populate("members.userId", "fullName")
+      .populate("createdBy", "fullName");
 
     if (!payment) {
-      return res.status(404).json({ message: 'Payment not found.' });
+      return res.status(404).json({ message: "Payment not found." });
     }
 
-    res.status(200).json({payment});
+    let responseData = {
+      _id: payment._id,
+      title: payment.title,
+      description: payment.description,
+      amount: payment.amount,
+      type: payment.type,
+      published: payment.published,
+      dueDate: payment.dueDate,
+      createdBy: payment.createdBy,
+      createdAt: payment.createdAt,
+      updatedAt: payment.updatedAt,
+    };
+
+    if (payment.type === "donation" || payment.type === "contribution") {
+      const totalAmountPaid = payment.members.reduce(
+        (sum, member) => sum + (member.amountPaid || 0),
+        0
+      );
+
+      responseData.totalAmountPaid = totalAmountPaid;
+      responseData.members = payment.members.map((member) => ({
+        userId: member.userId?._id,
+        fullName: member.userId?.fullName || "Unnamed",
+        amountPaid: member.amountPaid || 0,
+        paid: member.paid || false, // 🔹 include paid for consistency
+      }));
+    } else if (payment.type === "required") {
+      const paidCount = payment.members.filter((m) => m.paid).length;
+      const totalAmount = paidCount * (payment.amount || 0);
+
+      responseData.totalAmount = totalAmount;
+      responseData.members = payment.members.map((member) => ({
+        userId: member.userId?._id,
+        fullName: member.userId?.fullName || "Unnamed",
+        paid: member.paid || false,
+        amountPaid: member.amountPaid || 0, // 🔹 add this too for tracking
+      }));
+    }
+
+    return res.status(200).json({ payment: responseData });
   } catch (error) {
-    console.error('Error fetching payment:', error);
-    res.status(500).json({ message: 'Server error while fetching payment.' });
+    console.error("Error fetching payment:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error while fetching payment." });
   }
 };
 
@@ -244,49 +324,27 @@ export const manageFetchEditPayment = async (req, res) => {
   const { id } = req.params;
   const { currentGroupId } = req.user;
 
-  if (
-    !mongoose.Types.ObjectId.isValid(currentGroupId) ||
-    !mongoose.Types.ObjectId.isValid(id)
-  ) {
+  if (!mongoose.Types.ObjectId.isValid(currentGroupId) || !mongoose.Types.ObjectId.isValid(id)) {
     return res.status(400).json({ message: "Invalid IDs in token" });
   }
 
   try {
-    // Fetch payment + populate members
-    const payment = await PaymentModel.findOne({
-      _id: id,
-      group: currentGroupId,
-    }).populate("members.userId", "fullName email");
+    const payment = await PaymentModel.findOne({ _id: id, group: currentGroupId }).populate("members.userId", "fullName email");
+    if (!payment) return res.status(404).json({ message: "Payment not found." });
 
-    if (!payment) {
-      return res.status(404).json({ message: "Payment not found." });
-    }
-
-    // Fetch all users in this group
-    const allUsers = await UserModel.find(
-      { group: currentGroupId },
-      "fullName email"
-    );
-
-    // Build members list with "selected" flag
+    const allUsers = await UserModel.find({ group: currentGroupId }, "fullName email");
     const members = allUsers.map((user) => {
-      const isSelected = payment.members.some(
-        (m) => m.userId && m.userId._id.toString() === user._id.toString()
-      );
-      const paidStatus = payment.members.find(
-        (m) => m.userId && m.userId._id.toString() === user._id.toString()
-      )?.paid || false;
-
+      const memberRecord = payment.members.find((m) => m.userId && m.userId._id.toString() === user._id.toString());
       return {
         _id: user._id,
         fullName: user.fullName,
         email: user.email,
-        selected: isSelected,
-        paid: paidStatus,
+        selected: !!memberRecord,
+        paid: memberRecord ? memberRecord.paid : false,
+        amountPaid: memberRecord ? memberRecord.amountPaid : 0,
       };
     });
 
-    // Send back full payment details
     res.status(200).json({
       payment: {
         _id: payment._id,
@@ -294,7 +352,7 @@ export const manageFetchEditPayment = async (req, res) => {
         description: payment.description,
         amount: payment.amount,
         dueDate: payment.dueDate,
-        required: payment.required,
+        type: payment.type,
         published: payment.published,
         createdBy: payment.createdBy,
         members,
@@ -302,69 +360,69 @@ export const manageFetchEditPayment = async (req, res) => {
     });
   } catch (error) {
     console.error("Fetch Edit Payment Error:", error);
-    return res
-      .status(500)
-      .json({ message: "Server error while fetching payment." });
+    res.status(500).json({ message: "Server error while fetching payment." });
   }
 };
 
 export const manageEditPayment = async (req, res) => {
   const { id } = req.params;
-  const {
-    title,
-    description,
-    amount,
-    dueDate,
-    required,
-    published,
-    members = [],
-  } = req.body;
-
+  const { title, description, amount, dueDate, type, published, members } = req.body;
   const { currentGroupId } = req.user;
 
   try {
-    // 🔹 Ensure the payment belongs to this group
     const payment = await PaymentModel.findOne({ _id: id, group: currentGroupId });
-    if (!payment) {
-      return res.status(404).json({ message: 'Payment not found.' });
-    }
+    if (!payment) return res.status(404).json({ message: 'Payment not found.' });
 
-    // 🔹 Validate and sync members
-    if (Array.isArray(members)) {
-      const validUsers = await UserModel.find({ _id: { $in: members } }).select('_id');
-      if (validUsers.length !== members.length) {
+    // ✅ Only overwrite members if a non-empty array is provided
+    if (Array.isArray(members) && members.length > 0) {
+      const userIds = members.map((m) => (typeof m === 'object' ? m.userId : m));
+
+      const validUsers = await UserModel.find({ _id: { $in: userIds } }).select('_id');
+      if (validUsers.length !== userIds.length) {
         return res.status(400).json({ message: 'One or more selected users are invalid.' });
       }
 
-      // Preserve paid status for existing members
       const existingMap = new Map(
-        payment.members.map(m => [m.userId.toString(), m.paid])
+        (payment.members || []).map((m) => [
+          m.userId.toString(),
+          { paid: m.paid, amountPaid: m.amountPaid },
+        ])
       );
 
-      // Rebuild members array: keep paid if existed, default false if new
-      payment.members = members.map(userId => ({
-        userId,
-        paid: existingMap.get(userId.toString()) || false,
-      }));
+      payment.members = userIds.map((uid) => {
+        const incoming = members.find(
+          (m) => (typeof m === 'object' ? m.userId : m).toString() === uid.toString()
+        );
+
+        return {
+          userId: uid,
+          paid:
+            incoming?.paid !== undefined
+              ? !!incoming.paid
+              : existingMap.get(uid.toString())?.paid || false,
+          amountPaid:
+            incoming?.amountPaid !== undefined
+              ? Number(incoming.amountPaid)
+              : existingMap.get(uid.toString())?.amountPaid || 0,
+        };
+      });
     }
 
-    // 🔹 Update other fields
     if (title !== undefined) payment.title = title;
     if (description !== undefined) payment.description = description;
     if (amount !== undefined) payment.amount = Number(amount);
     if (dueDate !== undefined) payment.dueDate = dueDate;
-    if (required !== undefined) payment.required = required;
+    if (type !== undefined) payment.type = type;
     if (published !== undefined) payment.published = published;
 
     await payment.save();
-
-    return res.status(200).json({
+    res.status(200).json({
       message: 'Payment updated successfully.',
       payment,
     });
   } catch (error) {
-    console.error('Update Payment Error:', error);
-    return res.status(500).json({ message: 'Server error while updating payment.' });
+    console.error('manageEditPayment Error:', error);
+    res.status(500).json({ message: 'Server error while updating payment.' });
   }
 };
 
@@ -422,9 +480,8 @@ export const manageMarkPaymentsAsPaid = async (req, res) => {
     }
 
     res.status(200).json({
-      message: `Updated ${updateResult.modifiedCount} member${updateResult.modifiedCount > 1 ? 's' : ''} as ${
-        paid ? "paid" : "unpaid"
-      }.`,
+      message: `Updated ${updateResult.modifiedCount} member${updateResult.modifiedCount > 1 ? 's' : ''} as ${paid ? "paid" : "unpaid"
+        }.`,
     });
   } catch (error) {
     console.error("Error updating members payment:", error);
@@ -485,7 +542,7 @@ export const manageMarkPaymentsAsUnpaid = async (req, res) => {
         .json({ message: "No members updated. Check member IDs." });
     }
 
-    res.status(200).json({message: `Updated ${updateResult.modifiedCount} member${updateResult.modifiedCount > 1 ? 's' : ''} as unpaid.`});
+    res.status(200).json({ message: `Updated ${updateResult.modifiedCount} member${updateResult.modifiedCount > 1 ? 's' : ''} as unpaid.` });
   } catch (error) {
     console.error("Error updating members payment:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -504,25 +561,25 @@ export const manageGetPaymentMembers = async (req, res) => {
   }
 
   try {
-    // 1. Get the group and its members
-    const group = await GroupModel.findById(currentGroupId).populate("members.user", "fullName email");
+    // 1. Load group with members
+    const group = await GroupModel.findById(currentGroupId)
+      .populate("members.user", "fullName email");
     if (!group) {
       return res.status(404).json({ message: "Group not found." });
     }
 
-    // 2. Get the payment document
+    // 2. Load payment
     const payment = await PaymentModel.findOne({
       _id: paymentId,
       group: currentGroupId,
     });
-
     if (!payment) {
       return res.status(404).json({ message: "Payment not found for this group." });
     }
 
-    // 3. Build response: map group members to include their payment status
+    // 3. Map group members with payment info
     const membersWithStatus = group.members.map((member) => {
-      const paymentRecord = payment.members.find(
+      const record = payment.members.find(
         (m) => m.userId.toString() === member.user._id.toString()
       );
 
@@ -532,16 +589,222 @@ export const manageGetPaymentMembers = async (req, res) => {
         email: member.user.email,
         memberNumber: member.memberNumber,
         status: member.status,
-        paid: paymentRecord ? paymentRecord.paid : false, // default false if not in payment.members
-        selected: !!paymentRecord, // helpful for pre-checking in checkboxes
+        attached: !!record,             // for checkboxes
+        paid: record ? record.paid : false,
+        amountPaid: record ? record.amountPaid : 0,
       };
     });
 
-    return res.status(200).json({
-      members: membersWithStatus,
-    });
+    return res.status(200).json({ members: membersWithStatus });
   } catch (error) {
     console.error("Error fetching payment members:", error);
     return res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+export const manageUpdateDonationPayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { members, ...rest } = req.body;
+    const { currentGroupId } = req.user;
+
+    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: 'Invalid ID(s) format.' });
+    }
+
+    const payment = await PaymentModel.findOne({ _id: id, group: currentGroupId });
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found" });
+    }
+    if (payment.type !== "donation") {
+      return res.status(400).json({ message: "Not a donation payment" });
+    }
+
+    if (Array.isArray(members) && members.length > 0) {
+      // Normalize userIds
+      const userIds = members.map((m) =>
+        typeof m === "object" ? m.userId.toString() : m.toString()
+      );
+
+      // Validate users exist
+      const validUsers = await UserModel.find({ _id: { $in: userIds } }).select("_id");
+      if (validUsers.length !== userIds.length) {
+        return res.status(400).json({ message: "One or more selected users are invalid." });
+      }
+
+      // Start with existing members
+      const updatedMembers = [...payment.members.map((m) => m.toObject())];
+
+      members.forEach((incoming) => {
+        const userId =
+          typeof incoming === "object" ? incoming.userId.toString() : incoming.toString();
+        const amountPaid =
+          typeof incoming === "object" && incoming.amountPaid !== undefined
+            ? Number(incoming.amountPaid)
+            : 0;
+
+        const existingIndex = updatedMembers.findIndex((m) => m.userId.toString() === userId);
+
+        if (existingIndex >= 0) {
+          // Update existing record
+          updatedMembers[existingIndex] = {
+            ...updatedMembers[existingIndex],
+            amountPaid,
+            paid: amountPaid > 0,
+          };
+        } else {
+          // Add new record
+          updatedMembers.push({
+            userId,
+            amountPaid,
+            paid: amountPaid > 0,
+          });
+        }
+      });
+
+      payment.members = updatedMembers;
+    }
+
+    // Apply other updates (title, description, etc.)
+    Object.assign(payment, rest);
+
+    await payment.save();
+    res.json({message: 'Donation updated successfully!'});
+  } catch (err) {
+    console.error("Error updating donation payment:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const manageUpdateRequiredPayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { members, ...rest } = req.body;
+    const { currentGroupId } = req.user;
+
+    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: 'Invalid ID(s) format.' });
+    }
+
+    const payment = await PaymentModel.findOne({ _id: id, group: currentGroupId });
+    if (!payment) return res.status(404).json({ message: "Payment not found" });
+    if (payment.type !== "required")
+      return res.status(400).json({ message: "Not a required payment" });
+
+    // ✅ Only update members if a non-empty array is provided
+    if (Array.isArray(members) && members.length > 0) {
+      const userIds = members.map((m) => (typeof m === "object" ? m.userId : m));
+
+      // validate users
+      const validUsers = await UserModel.find({ _id: { $in: userIds } }).select("_id");
+      if (validUsers.length !== userIds.length) {
+        return res.status(400).json({ message: "One or more selected users are invalid." });
+      }
+
+      // preserve existing paid/amountPaid if not provided
+      const existingMap = new Map(
+        (payment.members || []).map((m) => [
+          m.userId.toString(),
+          { paid: m.paid, amountPaid: m.amountPaid },
+        ])
+      );
+
+      payment.members = userIds.map((uid) => {
+        const incoming = members.find(
+          (m) => (typeof m === "object" ? m.userId : m).toString() === uid.toString()
+        );
+
+        return {
+          userId: uid,
+          paid:
+            incoming?.paid !== undefined
+              ? !!incoming.paid
+              : existingMap.get(uid.toString())?.paid || false,
+          amountPaid:
+            incoming?.amountPaid !== undefined
+              ? Number(incoming.amountPaid)
+              : existingMap.get(uid.toString())?.amountPaid || 0,
+        };
+      });
+    }
+
+    Object.assign(payment, rest);
+    await payment.save();
+
+    res.json({message: 'Payment updated successfully!'});
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const manageUpdateContributionPayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { members, ...rest } = req.body;
+    const { currentGroupId } = req.user;
+
+    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: 'Invalid ID(s) format.' });
+    }
+
+    const payment = await PaymentModel.findOne({ _id: id, group: currentGroupId });
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found" });
+    }
+    if (payment.type !== "contribution") {
+      return res.status(400).json({ message: "Not a contribution payment" });
+    }
+
+    if (Array.isArray(members) && members.length > 0) {
+      // Normalize userIds from members payload
+      const userIds = members.map((m) =>
+        typeof m === "object" ? m.userId.toString() : m.toString()
+      );
+
+      // Validate users exist in DB
+      const validUsers = await UserModel.find({ _id: { $in: userIds } }).select("_id");
+      if (validUsers.length !== userIds.length) {
+        return res.status(400).json({ message: "One or more selected users are invalid." });
+      }
+
+      // Build updated member list
+      const updatedMembers = [...payment.members.map((m) => m.toObject())];
+
+      members.forEach((incoming) => {
+        const userId = typeof incoming === "object" ? incoming.userId.toString() : incoming.toString();
+        const amountPaid = typeof incoming === "object" && incoming.amountPaid !== undefined
+          ? Number(incoming.amountPaid)
+          : 0;
+
+        const existingIndex = updatedMembers.findIndex((m) => m.userId.toString() === userId);
+
+        if (existingIndex >= 0) {
+          // Update existing
+          updatedMembers[existingIndex] = {
+            ...updatedMembers[existingIndex],
+            amountPaid,
+            paid: amountPaid > 0,
+          };
+        } else {
+          // Add new
+          updatedMembers.push({
+            userId,
+            amountPaid,
+            paid: amountPaid > 0,
+          });
+        }
+      });
+
+      payment.members = updatedMembers;
+    }
+
+    // Update other payment fields (title, description, etc.)
+    Object.assign(payment, rest);
+
+    await payment.save();
+    res.json({message: 'Contribution updated successfully!'});
+  } catch (err) {
+    console.error("Error updating contribution payment:", err);
+    res.status(500).json({ message: err.message });
   }
 };

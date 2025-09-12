@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -19,53 +19,49 @@ import stylesConfig from '../../styles/styles';
 
 const ManagePayment = ({ navigation }) => {
     const route = useRoute();
-    const { id } = route.params;
+    const { id, paymentType } = route.params;
 
     const { colors } = useSelector((state) => state.colors);
-    const [loading, setLoading] = useState(true);
-    const [loadingMarkPayment, setLoadingMarkPayment] = useState(false);
+
     const [payment, setPayment] = useState(null);
     const [filteredMembers, setFilteredMembers] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterType, setFilterType] = useState('all'); // all | paid | unpaid
-    const [notification, setNotification] = useState({
-        visible: false,
-        type: '',
-        message: '',
-    });
-
+    const [filterType, setFilterType] = useState('all'); // 'all' | 'paid' | 'unpaid'
     const [selectedMembers, setSelectedMembers] = useState([]);
+
+    const [loading, setLoading] = useState(true);
+    const [loadingMarkPayment, setLoadingMarkPayment] = useState(false);
+    const [notification, setNotification] = useState({ visible: false, type: '', message: '' });
     const [confirmVisible, setConfirmVisible] = useState(false);
 
-    // show more/less animation
+    // Expand/Collapse animation
     const [expanded, setExpanded] = useState(false);
     const animatedHeight = useRef(new Animated.Value(100)).current;
 
-    useEffect(() => {
-        const fetchPaymentDetails = async () => {
-            try {
-                const response = await privateAxios.get(`private/manage-payment/${id}`);
-                if (response.status === 200) {
-                    setPayment(response.data.payment);
-                    setFilteredMembers(response.data.payment.members || []);
-                }
-            } catch (err) {
-                setNotification({
-                    visible: true,
-                    type: 'error',
-                    message: err?.response?.data?.message || 'Failed to fetch payment info.',
-                });
-                setTimeout(() => {
-                    setNotification({ visible: false, type: '', message: '' });
-                }, 3000);
-            } finally {
-                setLoading(false);
+    /** Fetch Payment Details */
+    const fetchPaymentDetails = useCallback(async () => {
+        try {
+            const response = await privateAxios.get(`/private/manage-payment/${id}`);
+            if (response.status === 200) {
+                setPayment(response.data.payment);
+                setFilteredMembers(response.data.payment.members || []);
             }
-        };
-
-        fetchPaymentDetails();
+        } catch (err) {
+            setNotification({
+                visible: true,
+                type: 'error',
+                message: err?.response?.data?.message || 'Failed to fetch payment info.',
+            });
+        } finally {
+            setLoading(false);
+        }
     }, [id]);
 
+    useEffect(() => {
+        fetchPaymentDetails();
+    }, [fetchPaymentDetails]);
+
+    /** Expand/Collapse Info Card */
     const toggleExpand = () => {
         Animated.timing(animatedHeight, {
             toValue: expanded ? 100 : 300,
@@ -75,28 +71,34 @@ const ManagePayment = ({ navigation }) => {
         setExpanded(!expanded);
     };
 
+    /** Handle Search + Filter */
     const handleSearchAndFilter = (query, type) => {
         setSearchQuery(query);
         setFilterType(type);
 
         if (!payment) return;
 
-        let result = payment.members;
+        let members = [...payment.members];
 
-        if (type === 'paid') {
-            result = result.filter((member) => member.paid);
-        } else if (type === 'unpaid') {
-            result = result.filter((member) => !member.paid);
+        if (payment?.type === "required" || payment?.type === "contribution") {
+            if (type === 'paid') {
+                members = members.filter((m) => m.paid);
+            } else if (type === 'unpaid') {
+                members = members.filter((m) => !m.paid);
+            }
         }
 
         if (query.trim()) {
-            result = result.filter((member) =>
-                member.userId?.fullName?.toLowerCase().includes(query.toLowerCase())
+            members = members.filter((m) =>
+                (m.userId?.fullName || m.fullName || "")
+                    .toLowerCase()
+                    .includes(query.toLowerCase())
             );
         }
 
-        setFilteredMembers(result);
+        setFilteredMembers(members);
     };
+
 
     const toggleSelectMember = (memberId) => {
         setSelectedMembers((prev) =>
@@ -114,7 +116,8 @@ const ManagePayment = ({ navigation }) => {
 
         try {
             setLoadingMarkPayment(true);
-            let endpoint =
+
+            const endpoint =
                 filterType === 'paid'
                     ? '/private/manage-mark-payments-as-unpaid'
                     : '/private/manage-mark-payments-as-paid';
@@ -131,27 +134,16 @@ const ManagePayment = ({ navigation }) => {
                     message: response.data.message,
                 });
 
-                // 🔑 Refetch payment
-                const refreshed = await privateAxios.get(`/private/manage-payment/${id}`);
-                setPayment(refreshed.data.payment);
+                setTimeout(() => {
+                    setNotification({
+                        visible: false,
+                        type: '',
+                        message: '',
+                    });
+                }, 3000);
 
-                // 🔑 Reapply the current filter + search query
-                let updatedMembers = refreshed.data.payment.members;
-
-                if (filterType === 'paid') {
-                    updatedMembers = updatedMembers.filter((m) => m.paid);
-                } else if (filterType === 'unpaid') {
-                    updatedMembers = updatedMembers.filter((m) => !m.paid);
-                }
-
-                if (searchQuery.trim()) {
-                    updatedMembers = updatedMembers.filter((m) =>
-                        m.userId?.fullName?.toLowerCase().includes(searchQuery.toLowerCase())
-                    );
-                }
-
-                setFilteredMembers(updatedMembers);
-
+                await fetchPaymentDetails();
+                handleSearchAndFilter(searchQuery, filterType); // Re-apply filter
                 setSelectedMembers([]);
             }
         } catch (err) {
@@ -162,20 +154,56 @@ const ManagePayment = ({ navigation }) => {
             });
         } finally {
             setLoadingMarkPayment(false);
-            setTimeout(() => setNotification({ visible: false, type: '', message: '' }), 3000);
         }
     };
 
-
     const renderMember = ({ item }) => {
-        const isSelected = selectedMembers.includes(item.userId?._id);
+        const type = payment?.type;
 
-        const showCheckbox = filterType === 'paid' || filterType === 'unpaid';
+        if (type === 'donation') {
+            return (
+                <View style={{ ...stylesConfig.CARD, backgroundColor: colors.inputBackground, borderColor: colors.border }}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.text, fontWeight: '600' }}>
+                            {item.fullName || item.userId?.fullName || 'Unnamed Donor'}
+                        </Text>
+                        <Text style={{ color: colors.primary }}>
+                            Amount Donated: ₦{(item.amountPaid || 0).toLocaleString()}
+                        </Text>
+                    </View>
+                </View>
+            );
+        }
+
+        if (type === 'contribution') {
+            return (
+                <View style={{ ...stylesConfig.CARD, backgroundColor: colors.inputBackground, borderColor: colors.border }}>
+                    <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                        <View>
+                            <Text style={{ color: colors.text, fontWeight: '600' }}>
+                                {item.fullName || 'Unnamed Member'}
+                            </Text>
+                            <Text style={{ color: colors.placeholder }}>
+                                Status: {item.paid ? '✅ Paid' : '❌ Unpaid'}
+                            </Text>
+                        </View>
+                        <Text style={{ color: colors.primary }}>
+                            Amount Paid: ₦{(item.amountPaid || 0).toLocaleString()}
+                        </Text>
+                    </View>
+                </View>
+            );
+        }
+
+        // Default for required
+        const memberId = item.userId?._id;
+        const isSelected = selectedMembers.includes(memberId);
+        const showCheckbox = filterType !== 'all';
 
         return (
             <Pressable
                 disabled={!showCheckbox}
-                onPress={() => toggleSelectMember(item.userId?._id)}
+                onPress={() => toggleSelectMember(memberId)}
                 style={{
                     ...stylesConfig.CARD,
                     backgroundColor: colors.inputBackground,
@@ -184,7 +212,6 @@ const ManagePayment = ({ navigation }) => {
                     alignItems: 'center',
                 }}
             >
-                {/* Checkbox */}
                 {showCheckbox && (
                     <View
                         style={{
@@ -199,16 +226,12 @@ const ManagePayment = ({ navigation }) => {
                             alignItems: 'center',
                         }}
                     >
-                        {isSelected && (
-                            <Text style={{ color: colors.mainButtonText, fontWeight: 'bold' }}>✓</Text>
-                        )}
+                        {isSelected && <Text style={{ color: colors.mainButtonText, fontWeight: 'bold' }}>✓</Text>}
                     </View>
                 )}
-
-                {/* Member Info */}
                 <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.text, fontWeight: '600' }}>
-                        {item.userId?.fullName || 'Unnamed Member'}
+                        {item?.fullName || 'Unnamed Member'}
                     </Text>
                     <Text style={{ color: colors.placeholder }}>
                         Status: {item.paid ? '✅ Paid' : '❌ Unpaid'}
@@ -241,8 +264,37 @@ const ManagePayment = ({ navigation }) => {
         </Pressable>
     );
 
+    const selectedCount = selectedMembers.length;
+    const actionLabel =
+        filterType === 'paid'
+            ? `Mark Selected as Unpaid (${selectedCount})`
+            : `Mark Selected as Paid (${selectedCount})`;
+
+    const markingLabel =
+        filterType === 'paid'
+            ? `Marking (${selectedCount}) as Unpaid...`
+            : `Marking (${selectedCount}) as Paid...`;
+
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', rowGap: 10, alignItems: 'center', padding: 20 }}>
+                <Text style={{ fontSize: 22, fontWeight: 'bold', color: colors.text, flexShrink: 1, }}>
+                    {paymentType[0]?.toUpperCase() + paymentType?.slice(1)} Details
+                </Text>
+                {payment &&
+                    <Pressable
+                        style={{
+                            backgroundColor: colors.primary,
+                            padding: 6,
+                            borderRadius: 6,
+                            alignSelf: 'center',
+                        }}
+                        onPress={() => navigation.navigate('manage-edit-payment', { id: payment._id, paymentType: payment?.type === 'required' ? 'Payment' : payment?.type })}
+                    >
+                        <Text style={{ color: colors.mainButtonText }}>Edit {paymentType[0]?.toUpperCase() + paymentType?.slice(1)}</Text>
+                    </Pressable>}
+            </View>
             {loading ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                     <ActivityIndicator size="large" color={colors.primary} />
@@ -250,39 +302,9 @@ const ManagePayment = ({ navigation }) => {
                 </View>
             ) : (
                 <View style={{ flex: 1, padding: 20 }}>
-                    <Notification
-                        visible={notification.visible}
-                        type={notification.type}
-                        message={notification.message}
-                    />
+                    <Notification {...notification} />
 
-                    {/* Header */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text
-                            style={{
-                                fontSize: 24,
-                                fontWeight: 'bold',
-                                color: colors.text,
-                                marginBottom: 16,
-                            }}
-                        >
-                            Payment Details
-                        </Text>
-                        <Pressable
-                            style={{
-                                backgroundColor: colors.primary,
-                                marginBottom: 12,
-                                justifyContent: 'center',
-                                padding: 5,
-                                borderRadius: 5,
-                            }}
-                            onPress={() => navigation.navigate('manage-edit-payment', { id: payment._id })}
-                        >
-                            <Text style={{ color: colors.mainButtonText }}>Edit Payment</Text>
-                        </Pressable>
-                    </View>
-
-                    {/* Payment Info Card (Collapsible) */}
+                    {/* Payment Info */}
                     <Animated.View
                         style={{
                             backgroundColor: colors.secondary,
@@ -295,41 +317,54 @@ const ManagePayment = ({ navigation }) => {
                             height: animatedHeight,
                         }}
                     >
-                        <Text
-                            style={{
-                                color: colors.text,
-                                fontSize: 20,
-                                fontWeight: 'bold',
-                                marginBottom: 8,
-                            }}
-                        >
+                        <Text style={{ color: colors.text, fontSize: 20, fontWeight: 'bold', marginBottom: 8 }}>
                             {payment?.title}
                         </Text>
-                        <Text style={{ color: colors.text, marginBottom: 8 }}>
-                            {payment?.description}
-                        </Text>
-                        <Text
-                            style={{
-                                color: colors.primary,
-                                fontSize: 18,
-                                fontWeight: '600',
-                                marginBottom: 8,
-                            }}
-                        >
-                            Amount: ₦{payment?.amount?.toLocaleString()}
-                        </Text>
+                        <Text style={{ color: colors.text, marginBottom: 8 }}>{payment?.description}</Text>
+
+                        {payment?.type === 'donation' || payment?.type === 'contribution' ? (
+                            <Text
+                                style={{
+                                    color: colors.primary,
+                                    fontSize: 18,
+                                    fontWeight: '600',
+                                    marginBottom: 8,
+                                }}
+                            >
+                                Total Amount Paid: ₦{payment?.totalAmountPaid?.toLocaleString() || 0}
+                            </Text>
+                        ) : payment?.type === 'required' ? (
+                            <>
+                                <Text
+                                    style={{
+                                        color: colors.primary,
+                                        fontSize: 18,
+                                        fontWeight: '600',
+                                        marginBottom: 4,
+                                    }}
+                                >
+                                    Fixed Amount: ₦{payment?.amount?.toLocaleString() || 0}
+                                </Text>
+                                <Text
+                                    style={{
+                                        color: colors.primary,
+                                        fontSize: 18,
+                                        fontWeight: '600',
+                                        marginBottom: 8,
+                                    }}
+                                >
+                                    Total Collected: ₦{payment?.totalAmount?.toLocaleString() || 0}
+                                </Text>
+                            </>
+                        ) : null}
+
                         <Text style={{ color: colors.text, marginBottom: 4 }}>
-                            Due Date:{' '}
-                            {payment?.dueDate
-                                ? moment(payment.dueDate).format('MMMM DD, YYYY')
-                                : 'N/A'}
+                            Due Date: {payment?.dueDate ? moment(payment.dueDate).format('MMMM DD, YYYY') : 'N/A'}
                         </Text>
-                        <Text style={{ color: colors.text, marginBottom: 4 }}>
-                            Required: {payment?.required ? 'Yes' : 'No'}
-                        </Text>
-                        <Text style={{ color: colors.text }}>
-                            Published: {payment?.published ? 'Yes' : 'No'}
-                        </Text>
+                        <Text style={{ color: colors.text, marginBottom: 4 }}>Required: {payment?.type === 'required' ? 'Yes' : 'No'}</Text>
+                        <Text style={{ color: colors.text }}>Published: {payment?.published ? 'Yes' : 'No'}</Text>
+                        <Text style={{ color: colors.text }}>Created By: {payment?.createdBy?.fullName}</Text>
+                        <Text style={{ color: colors.text }}>Created By: {moment(payment?.createdAt).format('MMMM DD, YYYY')}</Text>
                     </Animated.View>
 
                     <Pressable onPress={toggleExpand} style={{ marginBottom: 20, alignItems: 'center' }}>
@@ -338,7 +373,8 @@ const ManagePayment = ({ navigation }) => {
                         </Text>
                     </Pressable>
 
-                    {/* Search and Filters */}
+                    {/* Search & Filters */}
+                    {/* Always show search bar */}
                     <TextInput
                         style={{
                             ...stylesConfig.INPUT,
@@ -354,14 +390,17 @@ const ManagePayment = ({ navigation }) => {
                         onChangeText={(text) => handleSearchAndFilter(text, filterType)}
                     />
 
-                    <View style={{ flexDirection: 'row', marginBottom: 16 }}>
-                        {renderFilterButton('All', 'all')}
-                        {renderFilterButton('Paid', 'paid')}
-                        {renderFilterButton('Unpaid', 'unpaid')}
-                    </View>
+                    {/* Show paid/unpaid filters for required and contribution */}
+                    {(payment?.type === 'required' || payment?.type === 'contribution') && (
+                        <View style={{ flexDirection: 'row', marginBottom: 16 }}>
+                            {renderFilterButton('All', 'all')}
+                            {renderFilterButton('Paid', 'paid')}
+                            {renderFilterButton('Unpaid', 'unpaid')}
+                        </View>
+                    )}
+
 
                     {/* Members List */}
-
                     <FlatList
                         data={filteredMembers}
                         keyExtractor={(item, index) => item.userId?._id || index.toString()}
@@ -370,8 +409,8 @@ const ManagePayment = ({ navigation }) => {
                         contentContainerStyle={{ paddingBottom: 120 }}
                     />
 
-                    {/* Floating Action Button */}
-                    {selectedMembers.length > 0 && (filterType === 'paid' || filterType === 'unpaid') && (
+                    {/* Action Button */}
+                    {selectedCount > 0 && filterType !== 'all' && (
                         <View
                             style={{
                                 position: 'absolute',
@@ -384,19 +423,20 @@ const ManagePayment = ({ navigation }) => {
                                 alignItems: 'center',
                             }}
                         >
-                            <Pressable onPress={confirmMarkSelected} disabled={loadingMarkPayment} style={{ flexDirection: 'row', columnGap: 10, justifyContent: 'center', alignItems: 'center' }}>
-                                {loadingMarkPayment && <ActivityIndicator size="small" color={colors.mainButtonText} />}
-                                <Text style={{ color: colors.mainButtonText, fontSize: 16, fontWeight: 'bold', }}>
-                                    {
-                                        loadingMarkPayment
-                                            ? filterType === "paid"
-                                                ? `Marking (${selectedMembers.length}) member${selectedMembers.length > 1 ? "s" : ""} as Unpaid`
-                                                : `Marking (${selectedMembers.length}) member${selectedMembers.length > 1 ? "s" : ""} as Paid`
-                                            : filterType === "paid"
-                                                ? `Mark Selected as Unpaid (${selectedMembers.length})`
-                                                : `Mark Selected as Paid (${selectedMembers.length})`
-                                    }
-
+                            <Pressable
+                                onPress={confirmMarkSelected}
+                                disabled={loadingMarkPayment}
+                                style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    columnGap: 10,
+                                }}
+                            >
+                                {loadingMarkPayment && (
+                                    <ActivityIndicator size="small" color={colors.mainButtonText} />
+                                )}
+                                <Text style={{ color: colors.mainButtonText, fontSize: 16, fontWeight: 'bold' }}>
+                                    {loadingMarkPayment ? markingLabel : actionLabel}
                                 </Text>
                             </Pressable>
                         </View>
@@ -409,7 +449,7 @@ const ManagePayment = ({ navigation }) => {
                 visible={confirmVisible}
                 title="Confirm Action"
                 message={`Are you sure you want to ${filterType === 'paid' ? 'mark as unpaid' : 'mark as paid'
-                    } ${selectedMembers.length > 1 ? 'these' : 'this'} ${selectedMembers.length} member${selectedMembers.length > 1 ? 's' : ''}?`}
+                    } ${selectedCount} member${selectedCount > 1 ? 's' : ''}?`}
                 onConfirm={executeMarkSelected}
                 onCancel={() => setConfirmVisible(false)}
             />

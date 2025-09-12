@@ -24,6 +24,7 @@ export default function UserDashboard() {
   const navigation = useNavigation();
   const { colors } = useSelector((state) => state.colors);
 
+  
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState({
     visible: false,
@@ -32,6 +33,7 @@ export default function UserDashboard() {
   });
   const [dashboardData, setDashboardData] = useState({
     fullName: '',
+    groupImageUrl: '',
     announcements: [],
     tasks: [],
     events: [],
@@ -50,7 +52,8 @@ export default function UserDashboard() {
         const response = await privateAxios.post(`private/user-dashboard`);
         if (response.status === 200) {
           setDashboardData({
-            fullName: response.data.fullName || '',
+            fullName: response.data.user.fullName || '',
+            groupImageUrl: response.data.group.imageUrl || '',
             announcements: response.data.announcements || [],
             tasks: response.data.tasks || [],
             events: response.data.events || [],
@@ -97,7 +100,7 @@ export default function UserDashboard() {
         {/* Header */}
         <View style={{ alignItems: 'center', marginBottom: 20 }}>
           <Image
-            source={HINTCORELOGO}
+            source={dashboardData.groupImageUrl || HINTCORELOGO}
             style={{ width: 80, height: 80, marginBottom: 8 }}
             resizeMode="contain"
           />

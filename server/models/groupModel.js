@@ -13,6 +13,11 @@ const groupSchema = new mongoose.Schema({
         trim: true,
     },
 
+    imageUrl: {
+        type: String,
+        default: ''
+    },
+
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
@@ -42,6 +47,10 @@ const groupSchema = new mongoose.Schema({
             permissions: {
                 type: [String],
                 default: [],
+            },
+            notificationsEnabled: {
+                type: Boolean,
+                default: false
             },
         },
     ],

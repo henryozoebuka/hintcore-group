@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useDispatch, useSelector } from 'react-redux';
-import { logout } from '../../redux/slices/authSlice';
-import { Ionicons } from '@expo/vector-icons';
+import { useSelector } from 'react-redux';
+// import { logout } from '../../redux/slices/authSlice';
+// import { Ionicons } from '@expo/vector-icons';
 import globalStyles from '../../styles/styles';
+import { useNavigation } from '@react-navigation/native';
 
 const Header = () => {
-  const dispatch = useDispatch();
-  const { user } = useSelector((state) => state.auth);
+  const navigation = useNavigation();
+  // const dispatch = useDispatch();
   const { colors } = useSelector((state) => state.colors);
   const styles = globalStyles.HEADER_STYLES;
 
@@ -37,23 +38,22 @@ const Header = () => {
     };
   }, []);
 
-  const handleLogout = async () => {
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('currentGroupId');
-    await AsyncStorage.removeItem('groupName');
-    dispatch(logout());
-    navigation.replace('login');
-  };
+  // const handleLogout = async () => {
+  //   await AsyncStorage.removeItem('token');
+  //   await AsyncStorage.removeItem('currentGroupId');
+  //   await AsyncStorage.removeItem('groupName');
+  //   dispatch(logout());
+  // };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.primary }]}>
-      <Text style={styles.title}>
-        {loading ? 'Loading...' : groupName || 'Hintcore Group'}
-      </Text>
+      <Pressable onPress={() => navigation.navigate('group-information')}>
+        <Text style={styles.title}>
+          {loading ? 'Loading...' : groupName || 'Hintcore Group'}
+        </Text>
+      </Pressable>
 
-      <View style={styles.rightSection}>
-        {user?.name && <Text style={styles.username}>{user.name}</Text>}
-
+      {/* <View style={styles.rightSection}>
         <Pressable
           onPress={handleLogout}
           style={[styles.logoutBtn, { backgroundColor: '#ef4444' }]}
@@ -62,7 +62,7 @@ const Header = () => {
           <Ionicons name="log-out-outline" size={22} color="#fff" />
           <Text style={styles.logoutText}>Logout</Text>
         </Pressable>
-      </View>
+      </View> */}
     </View>
   );
 };
