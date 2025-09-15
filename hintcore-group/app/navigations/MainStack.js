@@ -34,6 +34,8 @@ import CreateMinutes from '../pages/CreateMinutes/CreateMinutes';
 import ManageEditMinutes from '../pages/ManageEditMinutes/ManageEditMinutes';
 import GroupInformation from '../pages/GroupInformation/GroupInformation';
 import ManageEditGroupInformation from '../pages/ManageEditGroupInformation/ManageEditGroupInformation';
+import ManageAccounts from '../pages/ManageAccounts/ManageAccounts';
+import ManageAccount from '../pages/ManageAccount/ManageAccount';
 
 const Stack = createStackNavigator();
 
@@ -73,12 +75,8 @@ const MainStack = () => {
       <Stack.Screen name="manage-minutes" component={ManageMinutes} options={{ header: () => <Header title="Manage Constitution" showBack={false} /> }} />
       <Stack.Screen name="manage-edit-minutes" component={ManageEditMinutes} options={{ header: () => <Header title="Edit Minutes" showBack={false} /> }} />
 
-      
-      
-      
-      
-      
-      
+      <Stack.Screen name="manage-accounts" component={ManageAccounts} options={{ header: () => <Header title="Manage Accounts" showBack={false} /> }} />
+      <Stack.Screen name="manage-account" component={ManageAccount} options={{ header: () => <Header title="Manage Account" showBack={false} /> }} />
       
       <Stack.Screen name="create-payment" component={CreatePayment} options={{ header: () => <Header title="Create Payment" showBack={false} /> }} />
       <Stack.Screen name="manage-payments" component={ManagePayments} options={{ header: () => <Header title="Manage Payments" showBack={false} /> }} />

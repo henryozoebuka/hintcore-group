@@ -417,6 +417,7 @@ const handleSubmit = async () => {
                                         backgroundColor: colors.primary,
                                         paddingVertical: 14,
                                         borderRadius: 10,
+                                        columnGap: 10,
                                         alignItems: 'center',
                                         flexDirection: 'row',
                                         justifyContent: 'center',

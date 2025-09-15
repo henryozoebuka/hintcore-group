@@ -1,22 +1,29 @@
 import express from 'express';
-import { createPayment, getPaymentDetails, manageEditPayment, manageFetchEditPayment, manageGetPaymentMembers, manageMarkPaymentsAsPaid, manageMarkPaymentsAsUnpaid, managePayment, managePayments, manageUpdateContributionPayment, manageUpdateDonationPayment, manageUpdateRequiredPayment, payments } from '../controllers/paymentControllers.js';
+import { createPayment, getPaymentDetails, manageAccount, manageDeletePayment, manageDeletePayments, manageEditPayment, manageFetchEditPayment, manageGetPaymentMembers, manageMarkPaymentsAsPaid, manageMarkPaymentsAsUnpaid, managePayment, managePayments, manageSearchAccounts, manageSearchPayments, manageUpdateContributionPayment, manageUpdateDonationPayment, manageUpdateRequiredPayment, payments } from '../controllers/paymentControllers.js';
 import { checkPermissionToken } from '../middlewares/checkTokens.js';
 
 const paymentRouter = express.Router();
 
 paymentRouter.post('/private/create-payment', checkPermissionToken(['admin',]), createPayment);
-paymentRouter.get('/private/manage-payments', checkPermissionToken(['admin', 'manage_payment']), managePayments);
-paymentRouter.get('/private/payment/:id', checkPermissionToken(['user', 'admin', 'manage_payment']), getPaymentDetails);
-paymentRouter.get('/private/manage-payment/:id', checkPermissionToken(['admin', 'manage_payment']), managePayment);
-paymentRouter.get('/private/manage-fetch-edit-payment/:id', checkPermissionToken(['admin', 'manage_payment']), manageFetchEditPayment);
-paymentRouter.get('/private/manage-get-payment-members/:id', checkPermissionToken(['admin', 'manage_payment']), manageGetPaymentMembers);
-paymentRouter.patch('/private/manage-edit-payment/:id', checkPermissionToken(['admin', 'manage_payment']), manageEditPayment);
-paymentRouter.post('/private/manage-mark-payments-as-paid', checkPermissionToken(['admin', 'manage_payment']), manageMarkPaymentsAsPaid);
-paymentRouter.post('/private/manage-mark-payments-as-unpaid', checkPermissionToken(['admin', 'manage_payment']), manageMarkPaymentsAsUnpaid);
-paymentRouter.get('/private/payments', checkPermissionToken(['user', 'admin', 'manage_payment']), payments);
+paymentRouter.get('/private/manage-payments', checkPermissionToken(['admin', 'manage_payments']), managePayments);
+paymentRouter.get('/private/manage-search-payments', checkPermissionToken(['admin', 'manage_payments']), manageSearchPayments);
+paymentRouter.get('/private/payment/:id', checkPermissionToken(['user', 'admin', 'manage_payments']), getPaymentDetails);
+paymentRouter.get('/private/manage-payment/:id', checkPermissionToken(['admin', 'manage_payments']), managePayment);
+paymentRouter.get('/private/manage-fetch-edit-payment/:id', checkPermissionToken(['admin', 'manage_payments']), manageFetchEditPayment);
+paymentRouter.get('/private/manage-get-payment-members/:id', checkPermissionToken(['admin', 'manage_payments']), manageGetPaymentMembers);
+paymentRouter.patch('/private/manage-edit-payment/:id', checkPermissionToken(['admin', 'manage_payments']), manageEditPayment);
+paymentRouter.post('/private/manage-mark-payments-as-paid', checkPermissionToken(['admin', 'manage_payments']), manageMarkPaymentsAsPaid);
+paymentRouter.post('/private/manage-mark-payments-as-unpaid', checkPermissionToken(['admin', 'manage_payments']), manageMarkPaymentsAsUnpaid);
+paymentRouter.get('/private/payments', checkPermissionToken(['user', 'admin', 'manage_payments']), payments);
 
-paymentRouter.patch('/private/manage-edit-donation-payment/:id', checkPermissionToken(['admin', 'manage_payment']), manageUpdateDonationPayment);
-paymentRouter.patch('/private/manage-edit-required-payment/:id', checkPermissionToken(['admin', 'manage_payment']), manageUpdateRequiredPayment);
-paymentRouter.patch('/private/manage-edit-contribution-payment/:id', checkPermissionToken(['admin', 'manage_payment']), manageUpdateContributionPayment);
+paymentRouter.patch('/private/manage-edit-donation-payment/:id', checkPermissionToken(['admin', 'manage_payments']), manageUpdateDonationPayment);
+paymentRouter.patch('/private/manage-edit-required-payment/:id', checkPermissionToken(['admin', 'manage_payments']), manageUpdateRequiredPayment);
+paymentRouter.patch('/private/manage-edit-contribution-payment/:id', checkPermissionToken(['admin', 'manage_payments']), manageUpdateContributionPayment);
+
+paymentRouter.delete('/private/manage-delete-payment/:id', checkPermissionToken(['admin', 'manage_payments']), manageDeletePayment);
+paymentRouter.post('/private/manage-delete-payments', checkPermissionToken(['admin', 'manage_payments']), manageDeletePayments);
+
+paymentRouter.get('/private/manage-search-accounts', checkPermissionToken(['admin', 'manage_accounts']), manageSearchAccounts);
+paymentRouter.get('/private/manage-account/:id', checkPermissionToken(['admin', 'manage_accounts']), manageAccount);
 
 export default paymentRouter;

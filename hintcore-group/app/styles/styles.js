@@ -48,7 +48,7 @@ const SETTINGS_STYLES = {
 };
 
 const BUTTON = {
-  padding: 12,
+  padding: 8,
   borderRadius: 8,
   marginBottom: 10,
   alignItems: 'center',
@@ -57,7 +57,7 @@ const BUTTON = {
 const SMALL_BUTTON = {
   padding: 8,
   borderRadius: 6,
-  marginLeft: 6,
+  marginLeft: 0,
 };
 
 const INPUT = {
@@ -71,7 +71,7 @@ const INPUT = {
 const CARD = {
   flexDirection: 'row',
   alignItems: 'center',
-  padding: 12,
+  padding: 5,
   borderWidth: 1,
   borderRadius: 10,
   marginBottom: 10,
@@ -93,7 +93,8 @@ const PAGINATION = {
 };
 
 const PAGE_BUTTON = {
-  padding: 10,
+  paddingHorizontal: 10,
+  paddingVertical: 5,
   borderRadius: 8,
 };
 

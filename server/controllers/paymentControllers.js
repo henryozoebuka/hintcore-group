@@ -79,9 +79,10 @@ export const createPayment = async (req, res) => {
     if (dueDate) paymentData.dueDate = dueDate;
 
     const newPayment = new PaymentModel(paymentData);
+  
     await newPayment.save();
 
-    return res.status(201).json({ message: "Payment created successfully." });
+    return res.status(201).json({ message: `${paymentData.type[0].toUpperCase() + newPayment.type.slice(1)} created successfully.` });
   } catch (error) {
     console.error("Create Payment Error:", error);
     return res.status(500).json({
@@ -130,6 +131,70 @@ export const managePayments = async (req, res) => {
   } catch (error) {
     console.error('Error fetching payments:', error);
     res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+export const manageSearchPayments = async (req, res) => {
+  try {
+    const { titleOrContent, types, startDate, endDate, page = 1, limit = 10 } = req.query;
+    const { currentGroupId } = req.user;
+
+    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: "Invalid group ID." });
+    }
+
+    const group = await GroupModel.findById(currentGroupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found." });
+    }
+
+    // 🟢 Build query
+    let query = { group: currentGroupId };
+
+    // Title or Content search
+    if (titleOrContent) {
+      query.$or = [
+        { title: { $regex: titleOrContent, $options: "i" } },
+        { content: { $regex: titleOrContent, $options: "i" } },
+      ];
+    }
+
+    // Types (array of multiple)
+    if (types) {
+      const typeArray = types.split(",").map((t) => t.trim().toLowerCase());
+      if (typeArray.length > 0) {
+        query.type = { $in: typeArray };
+      }
+    }
+
+    // 🟢 Date Range
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) {
+        // include the whole day for endDate
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = end;
+      }
+    }
+
+    // Pagination
+    const skip = (page - 1) * limit;
+
+    const [payments, total] = await Promise.all([
+      PaymentModel.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)),
+      PaymentModel.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      payments,
+      totalPages: Math.ceil(total / limit),
+      currentPage: Number(page),
+    });
+  } catch (error) {
+    console.error("Search Payments Error:", error);
+    return res.status(500).json({ message: "An error occurred while searching payments." });
   }
 };
 
@@ -608,7 +673,7 @@ export const manageUpdateDonationPayment = async (req, res) => {
     const { members, ...rest } = req.body;
     const { currentGroupId } = req.user;
 
-    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(currentGroupId)) {
       return res.status(400).json({ message: 'Invalid ID(s) format.' });
     }
 
@@ -669,7 +734,8 @@ export const manageUpdateDonationPayment = async (req, res) => {
     Object.assign(payment, rest);
 
     await payment.save();
-    res.json({message: 'Donation updated successfully!'});
+    
+    res.status(200).json({ message: `${payment.title[0].toUpperCase() + payment.title.slice(1)} updated successfully!` });
   } catch (err) {
     console.error("Error updating donation payment:", err);
     res.status(500).json({ message: err.message });
@@ -682,7 +748,7 @@ export const manageUpdateRequiredPayment = async (req, res) => {
     const { members, ...rest } = req.body;
     const { currentGroupId } = req.user;
 
-    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(currentGroupId)) {
       return res.status(400).json({ message: 'Invalid ID(s) format.' });
     }
 
@@ -731,7 +797,7 @@ export const manageUpdateRequiredPayment = async (req, res) => {
     Object.assign(payment, rest);
     await payment.save();
 
-    res.json({message: 'Payment updated successfully!'});
+    res.status(200).json({ message: `${payment.title[0].toUpperCase() + payment.title.slice(1)} updated successfully!` });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -743,7 +809,7 @@ export const manageUpdateContributionPayment = async (req, res) => {
     const { members, ...rest } = req.body;
     const { currentGroupId } = req.user;
 
-    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(currentGroupId)) {
       return res.status(400).json({ message: 'Invalid ID(s) format.' });
     }
 
@@ -802,9 +868,357 @@ export const manageUpdateContributionPayment = async (req, res) => {
     Object.assign(payment, rest);
 
     await payment.save();
-    res.json({message: 'Contribution updated successfully!'});
+    res.status(200).json({ message: `${payment.title[0].toUpperCase() + payment.title.slice(1)} updated successfully!` });
   } catch (err) {
     console.error("Error updating contribution payment:", err);
     res.status(500).json({ message: err.message });
+  }
+};
+
+export const manageDeletePayment = async (req, res) => {
+  const { id } = req.params;
+  const { userId, currentGroupId } = req.user;
+
+  try {
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: "Invalid ID format." });
+    }
+
+    const group = await GroupModel.findById(currentGroupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found." });
+    }
+
+    const payment = await PaymentModel.findById(id);
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found." });
+    }
+
+    // 🔒 Ensure payment belongs to the same group
+    if (payment.group.toString() !== currentGroupId.toString()) {
+      return res.status(403).json({ message: "Not authorized to delete this payment." });
+    }
+
+    await payment.deleteOne();
+
+    return res.status(200).json({ message: "Payment deleted successfully." });
+  } catch (error) {
+    console.error("Delete Payment Error:", error);
+    return res.status(500).json({ message: "An error occurred while deleting the payment." });
+  }
+};
+
+export const manageDeletePayments = async (req, res) => {
+  try {
+    // return console.log(req.body)
+    const { ids } = req.body;
+    const { currentGroupId } = req.user;
+
+    // Basic checks
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No payment IDs provided." });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: "Invalid group ID in token." });
+    }
+
+    // Validate each incoming id
+    const invalidIds = ids.filter((id) => !mongoose.Types.ObjectId.isValid(id));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({
+        message: "One or more provided payment IDs are invalid.",
+        invalidIds,
+      });
+    }
+
+    // Ensure group exists
+    const group = await GroupModel.findById(currentGroupId).select("_id");
+    if (!group) {
+      return res.status(404).json({ message: "Group not found." });
+    }
+
+    // Convert to ObjectId instances
+    const objectIds = ids.map((id) => new mongoose.Types.ObjectId(id));
+
+    // Find payments that match the requested ids AND belong to this group
+    const paymentsInGroup = await PaymentModel.find({
+      _id: { $in: objectIds },
+      group: currentGroupId,
+    }).select("_id");
+
+    if (!paymentsInGroup || paymentsInGroup.length === 0) {
+      return res.status(404).json({
+        message: "No matching payments found that belong to your group.",
+      });
+    }
+
+    const toDeleteIds = paymentsInGroup.map((p) => p._id);
+
+    // Perform deletion (only for payments in the user's group)
+    const deleteResult = await PaymentModel.deleteMany({ _id: { $in: toDeleteIds } });
+
+    const deletedCount = deleteResult.deletedCount || 0;
+
+    return res.status(200).json({
+      message: `${deletedCount} payment${deletedCount > 1 ? 's' : ''} deleted successfully.`,
+      deletedCount,
+    });
+  } catch (err) {
+    console.error("Error deleting payments:", err);
+    return res.status(500).json({ message: "Server error. Failed to delete payments." });
+  }
+};
+
+export const manageSearchAccounts = async (req, res) => {
+  try {
+    const {
+      titleOrContent = "",
+      types = "",
+      startDate = "",
+      endDate = "",
+      dueStart = "",
+      dueEnd = "",
+      published = "",
+      createdBy = "", // now treated as creator fullName (string)
+      paymentStatus = "",
+      exportCsv = false,
+      page = 1,
+      limit = 10,
+    } = req.query;
+
+    const exportCsvBool = String(exportCsv) === "true";
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Number(limit) || 10);
+    const { currentGroupId } = req.user;
+
+    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: "Invalid group ID." });
+    }
+
+    const group = await GroupModel.findById(currentGroupId).lean();
+    if (!group) {
+      return res.status(404).json({ message: "Group not found." });
+    }
+
+    // Base query
+    const query = { group: currentGroupId };
+    const andConditions = [];
+
+    // Title or Description (partial, case-insensitive)
+    if (titleOrContent && titleOrContent.trim() !== "") {
+      const q = titleOrContent.trim();
+      andConditions.push({
+        $or: [
+          { title: { $regex: q, $options: "i" } },
+          { description: { $regex: q, $options: "i" } },
+        ],
+      });
+    }
+
+    // Types (csv string -> array)
+    if (types && types.trim() !== "") {
+      const typeArray = types.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+      if (typeArray.length > 0) andConditions.push({ type: { $in: typeArray } });
+    }
+
+    // CreatedAt range
+    if ((startDate && startDate !== "") || (endDate && endDate !== "")) {
+      const createdAt = {};
+      if (startDate && startDate !== "") createdAt.$gte = new Date(startDate);
+      if (endDate && endDate !== "") {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        createdAt.$lte = end;
+      }
+      andConditions.push({ createdAt });
+    }
+
+    // DueDate range
+    if ((dueStart && dueStart !== "") || (dueEnd && dueEnd !== "")) {
+      const dueDate = {};
+      if (dueStart && dueStart !== "") dueDate.$gte = new Date(dueStart);
+      if (dueEnd && dueEnd !== "") {
+        const end = new Date(dueEnd);
+        end.setHours(23, 59, 59, 999);
+        dueDate.$lte = end;
+      }
+      andConditions.push({ dueDate });
+    }
+
+    // Published
+    if (published !== "") {
+      andConditions.push({ published: published === "true" });
+    }
+
+    // createdBy: treat as fullName string (partial, case-insensitive)
+    if (createdBy && createdBy.trim() !== "") {
+      // find user(s) with matching fullName
+      const matchedUsers = await UserModel.find({
+        fullName: { $regex: createdBy.trim(), $options: "i" },
+      })
+        .select("_id")
+        .lean();
+
+      if (!matchedUsers || matchedUsers.length === 0) {
+        // No matching creators -> return empty result immediately
+        return res.status(200).json({
+          payments: [],
+          total: 0,
+          totalPages: exportCsvBool ? 1 : 0,
+          currentPage: exportCsvBool ? 1 : pageNum,
+        });
+      }
+
+      const userIds = matchedUsers.map((u) => u._id);
+      andConditions.push({ createdBy: { $in: userIds } });
+    }
+
+    // Payment status (any member paid/unpaid)
+    if (paymentStatus && paymentStatus !== "") {
+      if (paymentStatus === "unpaid") {
+        andConditions.push({ "members.paid": false });
+      } else if (paymentStatus === "paid") {
+        andConditions.push({ "members.paid": true });
+      }
+    }
+
+    // Apply AND conditions
+    if (andConditions.length > 0) query.$and = andConditions;
+
+    // Build query + populate members and creator fullName
+    const baseQuery = PaymentModel.find(query)
+      .sort({ createdAt: -1 })
+      .populate("createdBy", "fullName") // creator fullName
+      .populate("members.userId", "fullName email"); // member info
+
+    // Pagination if not export
+    let payments;
+    if (exportCsvBool) {
+      payments = await baseQuery.exec();
+    } else {
+      payments = await baseQuery.skip((pageNum - 1) * limitNum).limit(limitNum).exec();
+    }
+
+    const total = exportCsvBool ? payments.length : await PaymentModel.countDocuments(query);
+
+    // Build response with computed totals and correct createdBy fullName
+    const paymentsWithSummary = payments.map((p) => {
+      const members = Array.isArray(p.members) ? p.members : [];
+      const totalPaidMembers = members.filter((m) => m.paid).length;
+      const totalUnpaidMembers = members.filter((m) => !m.paid).length;
+      const totalAmountPaid = members.reduce((sum, m) => sum + (m.amountPaid || 0), 0);
+
+      return {
+        _id: p._id,
+        title: p.title,
+        description: p.description,
+        type: p.type,
+        dueDate: p.dueDate || null,
+        published: p.published,
+        createdBy: p.createdBy?.fullName || "",
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        amount: p.amount || 0,
+        totalPaidMembers,
+        totalUnpaidMembers,
+        totalAmountPaid,
+      };
+    });
+
+    return res.status(200).json({
+      payments: paymentsWithSummary,
+      total,
+      totalPages: exportCsvBool ? 1 : Math.ceil(total / limitNum),
+      currentPage: exportCsvBool ? 1 : pageNum,
+    });
+  } catch (error) {
+    console.error("Search Accounts Error:", error);
+    return res.status(500).json({ message: "An error occurred while searching accounts." });
+  }
+};
+
+export const manageAccount = async (req, res) => {
+  const { id } = req.params;
+  const { currentGroupId } = req.user;
+
+  if (!id) {
+    return res.status(400).json({ message: "Account ID is required." });
+  }
+
+  if (
+    !mongoose.Types.ObjectId.isValid(id) ||
+    !mongoose.Types.ObjectId.isValid(currentGroupId)
+  ) {
+    return res.status(400).json({ message: "Invalid ID(s) format." });
+  }
+
+  try {
+    const account = await PaymentModel.findOne({
+      _id: id,
+      group: currentGroupId,
+    })
+      .populate("group", "name")
+      .populate("members.userId", "fullName")
+      .populate("createdBy", "fullName");
+
+    if (!account) {
+      return res.status(404).json({ message: "Account not found." });
+    }
+
+    // Base response
+    let responseData = {
+      _id: account._id,
+      title: account.title,
+      description: account.description,
+      amount: account.amount,
+      type: account.type,
+      published: account.published,
+      dueDate: account.dueDate,
+      createdBy: account.createdBy,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt,
+      // group: account.group,
+    };
+
+    // Members + totals depending on type
+    if (account.type === "donation" || account.type === "contribution") {
+      const totalAmountPaid = account.members.reduce(
+        (sum, member) => sum + (member.amountPaid || 0),
+        0
+      );
+
+      responseData.totalAmountPaid = totalAmountPaid;
+      responseData.members = account.members.map((member) => ({
+        fullName: member.userId?.fullName || "Unnamed",
+        amountPaid: member.amountPaid || 0,
+        paid: member.paid || false,
+      }));
+    } else if (account.type === "required") {
+      const paidCount = account.members.filter((m) => m.paid).length;
+      const totalAmount = paidCount * (account.amountPaid || 0);
+
+      responseData.totalAmount = totalAmount;
+      responseData.members = account.members.map((member) => ({
+        fullName: member.userId?.fullName || "Unnamed",
+        paid: member.paid || false,
+        amountPaid: member.amountPaid || 0,
+      }));
+    } else {
+      // fallback in case type isn't matched
+      responseData.members = account.members.map((member) => ({
+        fullName: member.userId?.fullName || "Unnamed",
+        // paid: member.paid || false,
+        amountPaid: member.amountPaid || 0,
+      }));
+    }
+
+    // Final response
+    return res.status(200).json({ account: responseData });
+  } catch (error) {
+    console.error("Error fetching account:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error while fetching account." });
   }
 };

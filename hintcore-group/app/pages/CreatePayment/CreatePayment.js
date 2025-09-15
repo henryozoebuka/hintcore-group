@@ -92,14 +92,14 @@ const CreatePayment = ({ navigation }) => {
     }
   };
 
-  const handleUserAmountChange = (userId, amountValue) => {
-    setSelectedUsers(prev => prev.map(u => {
-      if (u.userId === userId) {
-        return { ...u, amountPaid: amountValue };
-      }
-      return u;
-    }));
-  };
+  // const handleUserAmountChange = (userId, amountValue) => {
+  //   setSelectedUsers(prev => prev.map(u => {
+  //     if (u.userId === userId) {
+  //       return { ...u, amountPaid: amountValue };
+  //     }
+  //     return u;
+  //   }));
+  // };
 
   const handleSubmit = async () => {
     // Basic validation
@@ -112,7 +112,7 @@ const CreatePayment = ({ navigation }) => {
     // For required types, amount is required and >0
     if (data.type === 'required') {
       if (!data.amount || isNaN(Number(data.amount)) || Number(data.amount) <= 0) {
-        setNotification({ visible: true, type: "error", message: "Amount must be a positive number" });
+        setNotification({ visible: true, type: "error", message: "Amount must be greater than 0" });
         setTimeout(() => setNotification({ visible: false, type: "", message: "" }), 3000);
         return;
       }
@@ -355,7 +355,7 @@ const CreatePayment = ({ navigation }) => {
               >
                 {loading && <ActivityIndicator color={colors.mainButtonText} />}
                 <Text style={{ color: colors.mainButtonText }}>
-                  {loading ? 'Submitting...' : 'Submit'}
+                  {loading ? `Submitting ${data.type[0].toUpperCase() + data.type.slice(1)}...` : 'Submit'}
                 </Text>
               </Pressable>
 
