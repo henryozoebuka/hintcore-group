@@ -19,53 +19,50 @@ import Notification from "../../components/Notification/Notification";
 import Footer from "../../components/Footer/Footer";
 import stylesConfig from "../../styles/styles";
 
-const ManageAccount = ({ navigation }) => {
+const ManagePaymentReport = () => {
     const route = useRoute();
-    const { id, accountType } = route.params;
+    const { id, paymentType } = route.params;
 
     const { colors } = useSelector((state) => state.colors);
 
-    const [account, setAccount] = useState(null);
+    const [paymentReport, setPaymentReport] = useState(null);
     const [filteredMembers, setFilteredMembers] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterType, setFilterType] = useState("all"); // all | paid | unpaid
-    const [selectedMembers, setSelectedMembers] = useState([]);
+
 
     const [loading, setLoading] = useState(true);
-    const [loadingMark, setLoadingMark] = useState(false);
     const [notification, setNotification] = useState({
         visible: false,
         type: "",
         message: "",
     });
-    const [confirmVisible, setConfirmVisible] = useState(false);
 
     const [expanded, setExpanded] = useState(false);
     const animatedHeight = useRef(new Animated.Value(100)).current;
 
-    /** Fetch Account Details */
-    const fetchAccountDetails = useCallback(async () => {
+    /** Fetch Payment Report Details */
+    const fetchPaymentReportDetails = useCallback(async () => {
         try {
-            const response = await privateAxios.get(`/private/manage-account/${id}`);
+            const response = await privateAxios.get(`/private/manage-payment-report/${id}`);
             if (response.status === 200) {
-                setAccount(response.data.account);
-                setFilteredMembers(response.data.account.members || []);
+                setPaymentReport(response.data.paymentReport);
+                setFilteredMembers(response.data.paymentReport.members || []);
             }
         } catch (err) {
-            setNotification({
-                visible: true,
-                type: "error",
-                message:
-                    err?.response?.data?.message || "Failed to fetch account info.",
-            });
+            setNotification({visible: true, type: "error", message: err?.response?.data?.message || "Failed to fetch payment report info."});
+            setTimeout(() => {
+                setNotification({visible: false, type: "", message: ""});
+            }, 3000);
+
         } finally {
             setLoading(false);
         }
     }, [id]);
 
     useEffect(() => {
-        fetchAccountDetails();
-    }, [fetchAccountDetails]);
+        fetchPaymentReportDetails();
+    }, [fetchPaymentReportDetails]);
 
     /** Expand / Collapse */
     const toggleExpand = () => {
@@ -82,11 +79,11 @@ const ManageAccount = ({ navigation }) => {
         setSearchQuery(query);
         setFilterType(type);
 
-        if (!account) return;
+        if (!paymentReport) return;
 
-        let members = [...(account.members || [])];
+        let members = [...(paymentReport.members || [])];
 
-        if (account?.type === "required" || account?.type === "contribution") {
+        if (paymentReport?.type === "required" || paymentReport?.type === "contribution") {
             if (type === "paid") {
                 members = members.filter((m) => m.paid);
             } else if (type === "unpaid") {
@@ -107,13 +104,13 @@ const ManageAccount = ({ navigation }) => {
 
     /** Export CSV */
     const exportToCSV = async () => {
-        if (!account) {
-            Alert.alert("No account to export.");
+        if (!paymentReport) {
+            Alert.alert("No payment report to export.");
             return;
         }
 
-        // Account info header
-        const accountHeader = [
+        // Payment report header
+        const paymentReportHeader = [
             "Title",
             "Type",
             "Description",
@@ -125,19 +122,19 @@ const ManageAccount = ({ navigation }) => {
             "CreatedBy",
         ].join(",") + "\n";
 
-        // Account info row
-        const accountRow = [
-            `"${account.title}"`,
-            `"${account.type}"`,
-            `"${account.description}"`,
-            account.amount || 0,
-            account.totalAmountPaid || 0,
-            account.dueDate ? moment(account.dueDate).format("YYYY-MM-DD") : "",
-            account.published ? "true" : "false",
-            account.createdAt
-                ? moment(account.createdAt).format("YYYY-MM-DD HH:mm:ss")
+        // Payment report row
+        const paymentReportRow = [
+            `"${paymentReport.title}"`,
+            `"${paymentReport.type}"`,
+            `"${paymentReport.description}"`,
+            paymentReport.amount || 0,
+            paymentReport.totalAmountPaid || 0,
+            paymentReport.dueDate ? moment(paymentReport.dueDate).format("YYYY-MM-DD") : "",
+            paymentReport.published ? "true" : "false",
+            paymentReport.createdAt
+                ? moment(paymentReport.createdAt).format("YYYY-MM-DD HH:mm:ss")
                 : "",
-            `"${account.createdBy?.fullName || account.createdBy || ""}"`,
+            `"${paymentReport.createdBy?.fullName || paymentReport.createdBy || ""}"`,
         ].join(",") + "\n\n";
 
         // Members header
@@ -156,11 +153,11 @@ const ManageAccount = ({ navigation }) => {
             .join("\n");
 
         // Final CSV (two sections)
-        const csv = "Account Info\n" + accountHeader + accountRow +
+        const csv = "Payment Report\n" + paymentReportHeader + paymentReportRow +
             "Members\n" + memberHeader + memberRows;
 
         try {
-            const fileUri = FileSystem.cacheDirectory + "account.csv";
+            const fileUri = FileSystem.cacheDirectory + "Payment-Report.csv";
             await FileSystem.writeAsStringAsync(fileUri, csv, {
                 encoding: FileSystem.EncodingType.UTF8,
             });
@@ -177,7 +174,7 @@ const ManageAccount = ({ navigation }) => {
 
     /** UI Helpers */
     const renderMember = ({ item }) => {
-        const type = account?.type;
+        const type = paymentReport?.type;
         if (type === "donation") {
             return (
                 <View
@@ -260,9 +257,9 @@ const ManageAccount = ({ navigation }) => {
                         flexShrink: 1,
                     }}
                 >
-                    {accountType[0]?.toUpperCase() + accountType?.slice(1)} Details
+                    {paymentType[0]?.toUpperCase() + paymentType?.slice(1)} Details
                 </Text>
-                {account && (
+                {paymentReport && (
                     <View style={{ flexDirection: "row", gap: 10 }}>
                         <Pressable
                             style={{
@@ -281,13 +278,13 @@ const ManageAccount = ({ navigation }) => {
             {loading ? (
                 <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
                     <ActivityIndicator size="large" color={colors.primary} />
-                    <Text style={{ color: colors.text }}>Loading account details...</Text>
+                    <Text style={{ color: colors.text }}>Loading payment report details...</Text>
                 </View>
             ) : (
                 <View style={{ flex: 1, padding: 20 }}>
                     <Notification {...notification} />
 
-                    {/* Account Info */}
+                    {/* Payment Report Info */}
                     <Animated.View
                         style={{
                             backgroundColor: colors.secondary,
@@ -301,31 +298,31 @@ const ManageAccount = ({ navigation }) => {
                         }}
                     >
                         <Text style={{ color: colors.text, fontSize: 20, fontWeight: "bold" }}>
-                            {account?.title}
+                            {paymentReport?.title}
                         </Text>
                         <Text style={{ color: colors.text, marginBottom: 8 }}>
-                            {account?.description}
+                            {paymentReport?.description}
                         </Text>
                         <Text style={{ color: colors.primary, fontWeight: "600" }}>
-                            Amount: ₦{account?.amount?.toLocaleString() || 0}
+                            Amount: ₦{paymentReport?.amount?.toLocaleString() || 0}
                         </Text>
                         <Text style={{ color: colors.primary, fontWeight: "600" }}>
-                            Total Paid: ₦{account?.totalAmountPaid?.toLocaleString() || 0}
+                            Total Paid: ₦{paymentReport?.totalAmountPaid?.toLocaleString() || 0}
                         </Text>
                         <Text style={{ color: colors.text }}>
                             Due Date:{" "}
-                            {account?.dueDate
-                                ? moment(account.dueDate).format("MMMM DD, YYYY")
+                            {paymentReport?.dueDate
+                                ? moment(paymentReport.dueDate).format("MMMM DD, YYYY")
                                 : "N/A"}
                         </Text>
                         <Text style={{ color: colors.text }}>
-                            Published: {account?.published ? "Yes" : "No"}
+                            Published: {paymentReport?.published ? "Yes" : "No"}
                         </Text>
                         <Text style={{ color: colors.text }}>
-                            Created By: {account?.createdBy?.fullName}
+                            Created By: {paymentReport?.createdBy?.fullName}
                         </Text>
                         <Text style={{ color: colors.text }}>
-                            Created At: {moment(account?.createdAt).format("MMMM DD, YYYY")}
+                            Created At: {moment(paymentReport?.createdAt).format("MMMM DD, YYYY")}
                         </Text>
                     </Animated.View>
 
@@ -351,7 +348,7 @@ const ManageAccount = ({ navigation }) => {
                         onChangeText={(text) => handleSearchAndFilter(text, filterType)}
                     />
 
-                    {(account?.type === "required" || account?.type === "contribution") && (
+                    {(paymentReport?.type === "required" || paymentReport?.type === "contribution") && (
                         <View style={{ flexDirection: "row", marginBottom: 16 }}>
                             {renderFilterButton("All", "all")}
                             {renderFilterButton("Paid", "paid")}
@@ -375,4 +372,4 @@ const ManageAccount = ({ navigation }) => {
     );
 };
 
-export default ManageAccount;
+export default ManagePaymentReport;

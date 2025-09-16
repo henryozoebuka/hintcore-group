@@ -79,7 +79,7 @@ export const createPayment = async (req, res) => {
     if (dueDate) paymentData.dueDate = dueDate;
 
     const newPayment = new PaymentModel(paymentData);
-  
+
     await newPayment.save();
 
     return res.status(201).json({ message: `${paymentData.type[0].toUpperCase() + newPayment.type.slice(1)} created successfully.` });
@@ -136,7 +136,7 @@ export const managePayments = async (req, res) => {
 
 export const manageSearchPayments = async (req, res) => {
   try {
-    const { titleOrContent, types, startDate, endDate, page = 1, limit = 10 } = req.query;
+    const { titleOrDescription, types, published, startDate, endDate, page = 1, limit = 10 } = req.query;
     const { currentGroupId } = req.user;
 
     if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
@@ -152,10 +152,10 @@ export const manageSearchPayments = async (req, res) => {
     let query = { group: currentGroupId };
 
     // Title or Content search
-    if (titleOrContent) {
+    if (titleOrDescription) {
       query.$or = [
-        { title: { $regex: titleOrContent, $options: "i" } },
-        { content: { $regex: titleOrContent, $options: "i" } },
+        { title: { $regex: titleOrDescription.trim(), $options: "i" } },
+        { description: { $regex: titleOrDescription.trim(), $options: "i" } },
       ];
     }
 
@@ -176,6 +176,15 @@ export const manageSearchPayments = async (req, res) => {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
         query.createdAt.$lte = end;
+      }
+    }
+
+    // 🟢 Published filter
+    if (published !== undefined) {
+      if (published === 'true' || published === 'false') {
+        query.published = published === 'true';
+      } else {
+        return res.status(400).json({ message: "`published` must be 'true' or 'false'." });
       }
     }
 
@@ -329,7 +338,6 @@ export const managePayment = async (req, res) => {
       _id: paymentId,
       group: currentGroupId,
     })
-      .populate("group", "name")
       .populate("members.userId", "fullName")
       .populate("createdBy", "fullName");
 
@@ -734,7 +742,7 @@ export const manageUpdateDonationPayment = async (req, res) => {
     Object.assign(payment, rest);
 
     await payment.save();
-    
+
     res.status(200).json({ message: `${payment.title[0].toUpperCase() + payment.title.slice(1)} updated successfully!` });
   } catch (err) {
     console.error("Error updating donation payment:", err);
@@ -877,7 +885,7 @@ export const manageUpdateContributionPayment = async (req, res) => {
 
 export const manageDeletePayment = async (req, res) => {
   const { id } = req.params;
-  const { userId, currentGroupId } = req.user;
+  const { currentGroupId } = req.user;
 
   try {
     if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(currentGroupId)) {
@@ -910,7 +918,6 @@ export const manageDeletePayment = async (req, res) => {
 
 export const manageDeletePayments = async (req, res) => {
   try {
-    // return console.log(req.body)
     const { ids } = req.body;
     const { currentGroupId } = req.user;
 
@@ -970,18 +977,20 @@ export const manageDeletePayments = async (req, res) => {
   }
 };
 
-export const manageSearchAccounts = async (req, res) => {
+export const manageSearchPaymentReports = async (req, res) => {
   try {
     const {
-      titleOrContent = "",
+      titleOrDescription = "",
       types = "",
       startDate = "",
       endDate = "",
       dueStart = "",
       dueEnd = "",
       published = "",
-      createdBy = "", // now treated as creator fullName (string)
+      createdBy = "",
       paymentStatus = "",
+      minAmount,
+      maxAmount,
       exportCsv = false,
       page = 1,
       limit = 10,
@@ -1006,8 +1015,8 @@ export const manageSearchAccounts = async (req, res) => {
     const andConditions = [];
 
     // Title or Description (partial, case-insensitive)
-    if (titleOrContent && titleOrContent.trim() !== "") {
-      const q = titleOrContent.trim();
+    if (titleOrDescription && titleOrDescription.trim() !== "") {
+      const q = titleOrDescription.trim();
       andConditions.push({
         $or: [
           { title: { $regex: q, $options: "i" } },
@@ -1083,6 +1092,18 @@ export const manageSearchAccounts = async (req, res) => {
       }
     }
 
+    // Amount Range Filter
+    if (minAmount || maxAmount) {
+      const amountFilter = {};
+      if (minAmount !== undefined && minAmount !== "") {
+        amountFilter.$gte = parseFloat(minAmount);
+      }
+      if (maxAmount !== undefined && maxAmount !== "") {
+        amountFilter.$lte = parseFloat(maxAmount);
+      }
+      andConditions.push({ amount: amountFilter });
+    }
+
     // Apply AND conditions
     if (andConditions.length > 0) query.$and = andConditions;
 
@@ -1127,23 +1148,23 @@ export const manageSearchAccounts = async (req, res) => {
     });
 
     return res.status(200).json({
-      payments: paymentsWithSummary,
+      paymentReports: paymentsWithSummary,
       total,
       totalPages: exportCsvBool ? 1 : Math.ceil(total / limitNum),
       currentPage: exportCsvBool ? 1 : pageNum,
     });
   } catch (error) {
-    console.error("Search Accounts Error:", error);
-    return res.status(500).json({ message: "An error occurred while searching accounts." });
+    console.error("Search Payment Reports Error:", error);
+    return res.status(500).json({ message: "An error occurred while searching payment reports." });
   }
 };
 
-export const manageAccount = async (req, res) => {
+export const managePaymentReport = async (req, res) => {
   const { id } = req.params;
   const { currentGroupId } = req.user;
 
   if (!id) {
-    return res.status(400).json({ message: "Account ID is required." });
+    return res.status(400).json({ message: "Payment ID is required." });
   }
 
   if (
@@ -1154,7 +1175,7 @@ export const manageAccount = async (req, res) => {
   }
 
   try {
-    const account = await PaymentModel.findOne({
+    const paymentReport = await PaymentModel.findOne({
       _id: id,
       group: currentGroupId,
     })
@@ -1162,51 +1183,51 @@ export const manageAccount = async (req, res) => {
       .populate("members.userId", "fullName")
       .populate("createdBy", "fullName");
 
-    if (!account) {
-      return res.status(404).json({ message: "Account not found." });
+    if (!paymentReport) {
+      return res.status(404).json({ message: "Payment report not found." });
     }
 
     // Base response
     let responseData = {
-      _id: account._id,
-      title: account.title,
-      description: account.description,
-      amount: account.amount,
-      type: account.type,
-      published: account.published,
-      dueDate: account.dueDate,
-      createdBy: account.createdBy,
-      createdAt: account.createdAt,
-      updatedAt: account.updatedAt,
-      // group: account.group,
+      _id: paymentReport._id,
+      title: paymentReport.title,
+      description: paymentReport.description,
+      amount: paymentReport.amount,
+      type: paymentReport.type,
+      published: paymentReport.published,
+      dueDate: paymentReport.dueDate,
+      createdBy: paymentReport.createdBy,
+      createdAt: paymentReport.createdAt,
+      updatedAt: paymentReport.updatedAt,
+      // group: paymentReport.group,
     };
 
     // Members + totals depending on type
-    if (account.type === "donation" || account.type === "contribution") {
-      const totalAmountPaid = account.members.reduce(
+    if (paymentReport.type === "donation" || paymentReport.type === "contribution") {
+      const totalAmountPaid = paymentReport.members.reduce(
         (sum, member) => sum + (member.amountPaid || 0),
         0
       );
 
       responseData.totalAmountPaid = totalAmountPaid;
-      responseData.members = account.members.map((member) => ({
+      responseData.members = paymentReport.members.map((member) => ({
         fullName: member.userId?.fullName || "Unnamed",
         amountPaid: member.amountPaid || 0,
         paid: member.paid || false,
       }));
-    } else if (account.type === "required") {
-      const paidCount = account.members.filter((m) => m.paid).length;
-      const totalAmount = paidCount * (account.amountPaid || 0);
+    } else if (paymentReport.type === "required") {
+      const paidCount = paymentReport.members.filter((m) => m.paid).length;
+      const totalAmount = paidCount * (paymentReport.amountPaid || 0);
 
       responseData.totalAmount = totalAmount;
-      responseData.members = account.members.map((member) => ({
+      responseData.members = paymentReport.members.map((member) => ({
         fullName: member.userId?.fullName || "Unnamed",
         paid: member.paid || false,
         amountPaid: member.amountPaid || 0,
       }));
     } else {
       // fallback in case type isn't matched
-      responseData.members = account.members.map((member) => ({
+      responseData.members = paymentReport.members.map((member) => ({
         fullName: member.userId?.fullName || "Unnamed",
         // paid: member.paid || false,
         amountPaid: member.amountPaid || 0,
@@ -1214,11 +1235,11 @@ export const manageAccount = async (req, res) => {
     }
 
     // Final response
-    return res.status(200).json({ account: responseData });
+    return res.status(200).json({ paymentReport: responseData });
   } catch (error) {
-    console.error("Error fetching account:", error);
+    console.error("Error fetching payment report:", error);
     return res
       .status(500)
-      .json({ message: "Server error while fetching account." });
+      .json({ message: "Server error while fetching payment report." });
   }
 };

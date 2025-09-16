@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView, Platform, ScrollView,
   ActivityIndicator, Keyboard
 } from 'react-native';
+import registerForPushNotificationsAsync from "../../utils/notifications/registerForPushNotifications";
 import { useNavigation } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import Notification from '../../components/Notification/Notification';
@@ -74,37 +75,34 @@ const Login = () => {
 
   const handleLogin = async () => {
     if (loading) return;
-    Keyboard.dismiss();
+  Keyboard.dismiss();
 
-    if (!email || !password) {
-      showNotification('error', 'Please enter both email and password.');
-      return;
+  if (!email || !password) {
+    showNotification('error', 'Please enter both email and password.');
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    // ✅ Get push token before login request
+    const deviceToken = await registerForPushNotificationsAsync();
+
+    const response = await publicAxios.post('/public/login', {
+      email: email.trim(),
+      password,
+      deviceToken, // ✅ attach push token here
+    });
+
+    if (response.status === 200) {
+      const { groupName, token } = response.data;
+
+      await AsyncStorage.setItem('token', token);
+      await AsyncStorage.setItem('groupName', groupName);
+
+      dispatch(setIsLoggedIn(true));
+      showNotification('success', response.data.message || 'Login successful.', 2000);
     }
-
-    if (!isValidEmail(email)) {
-      showNotification('error', 'Please enter a valid email address.');
-      return;
-    }
-
-    if (password.length < 8) {
-      showNotification('error', 'Password must be at least 8 characters long.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const response = await publicAxios.post('/public/login', { email: email.trim(), password });
-
-      if (response.status === 200) {
-        const { groupName, token } = response.data;
-
-        await AsyncStorage.setItem('token', token);
-        await AsyncStorage.setItem('groupName', groupName);
-
-        dispatch(setIsLoggedIn(true));
-
-        showNotification('success', response.data.message || 'Login successful.', 2000);
-      }
 
     } catch (error) {
       if (error?.response?.status === 409) {

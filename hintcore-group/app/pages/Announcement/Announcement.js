@@ -186,6 +186,7 @@ const renderHighlightedText = (text, search) => {
                     ]}
                 >
                     <ActivityIndicator size="large" color={colors.primary} />
+                    <Text style={{color: colors.text}}>Loading Announcement...</Text>
                 </View>
             ) : announcement ? (
                 <View

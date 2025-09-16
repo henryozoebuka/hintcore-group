@@ -34,8 +34,13 @@ import CreateMinutes from '../pages/CreateMinutes/CreateMinutes';
 import ManageEditMinutes from '../pages/ManageEditMinutes/ManageEditMinutes';
 import GroupInformation from '../pages/GroupInformation/GroupInformation';
 import ManageEditGroupInformation from '../pages/ManageEditGroupInformation/ManageEditGroupInformation';
-import ManageAccounts from '../pages/ManageAccounts/ManageAccounts';
-import ManageAccount from '../pages/ManageAccount/ManageAccount';
+import ManagePaymentReports from '../pages/ManagePaymentReports/ManagePaymentReports';
+import ManagePaymentReport from '../pages/ManagePaymentReport/ManagePaymentReport';
+import CreateExpense from '../pages/CreateExpense/CreateExpense';
+import ManageExpenses from '../pages/ManageExpenses/ManageExpenses';
+import ManageExpense from '../pages/ManageExpense/ManageExpense';
+import ManageEditExpense from '../pages/ManageEditExpense/ManageEditExpense';
+import ManageExpenseReports from '../pages/ManageExpenseReports/ManageExpenseReports';
 
 const Stack = createStackNavigator();
 
@@ -75,8 +80,8 @@ const MainStack = () => {
       <Stack.Screen name="manage-minutes" component={ManageMinutes} options={{ header: () => <Header title="Manage Constitution" showBack={false} /> }} />
       <Stack.Screen name="manage-edit-minutes" component={ManageEditMinutes} options={{ header: () => <Header title="Edit Minutes" showBack={false} /> }} />
 
-      <Stack.Screen name="manage-accounts" component={ManageAccounts} options={{ header: () => <Header title="Manage Accounts" showBack={false} /> }} />
-      <Stack.Screen name="manage-account" component={ManageAccount} options={{ header: () => <Header title="Manage Account" showBack={false} /> }} />
+      <Stack.Screen name="manage-payment-reports" component={ManagePaymentReports} options={{ header: () => <Header title="Manage Payment Reports" showBack={false} /> }} />
+      <Stack.Screen name="manage-payment-report" component={ManagePaymentReport} options={{ header: () => <Header title="Manage Payment Report" showBack={false} /> }} />
       
       <Stack.Screen name="create-payment" component={CreatePayment} options={{ header: () => <Header title="Create Payment" showBack={false} /> }} />
       <Stack.Screen name="manage-payments" component={ManagePayments} options={{ header: () => <Header title="Manage Payments" showBack={false} /> }} />
@@ -84,6 +89,13 @@ const MainStack = () => {
       <Stack.Screen name="manage-edit-payment" component={ManageEditPayment} options={{ header: () => <Header title="Manage Edit Payment" showBack={false} /> }} />
       <Stack.Screen name="payments" component={Payments} options={{ header: () => <Header title="Payments" showBack={false} /> }} />
       <Stack.Screen name="payment" component={Payment} options={{ header: () => <Header title="Payment" showBack={false} /> }} />
+
+      <Stack.Screen name="create-expense" component={CreateExpense} options={{ header: () => <Header title="Create Expense" showBack={false} /> }} />
+      <Stack.Screen name="manage-expenses" component={ManageExpenses} options={{ header: () => <Header title="Manage Expenses" showBack={false} /> }} />
+      <Stack.Screen name="manage-expense" component={ManageExpense} options={{ header: () => <Header title="Manage Expense" showBack={false} /> }} />
+      <Stack.Screen name="manage-edit-expense" component={ManageEditExpense} options={{ header: () => <Header title="Manage Edit Expense" showBack={false} /> }} />
+
+      <Stack.Screen name="manage-expense-reports" component={ManageExpenseReports} options={{ header: () => <Header title="Manage Expense Reports" showBack={false} /> }} />
     </Stack.Navigator>
   );
 };

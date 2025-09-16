@@ -9,14 +9,26 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hintcore.group",
+      "googleServicesFile": "./firebase/GoogleService-Info.plist",
+      "useFrameworks": "static",
+      "infoPlist": {
+        "NSUserTrackingUsageDescription": "This identifier will be used to deliver personalized notifications.",
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification"
+        ]
+      }
     },
     "android": {
+      "googleServicesFile": "./firebase/google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.hintcore.group"
     },
     "web": {
       "bundler": "metro",
@@ -37,6 +49,11 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "3fb3c61f-b691-40a9-96a0-a0362b2acf88"
+      }
     }
   }
 }

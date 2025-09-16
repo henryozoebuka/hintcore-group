@@ -18,7 +18,7 @@ import Footer from "../../components/Footer/Footer";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 
-const ManageAccounts = ({ navigation }) => {
+const ManagePaymentReport = ({ navigation }) => {
     const { colors } = useSelector((state) => state.colors);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [startDate, setStartDate] = useState(null);
@@ -26,11 +26,10 @@ const ManageAccounts = ({ navigation }) => {
     const [datePickerMode, setDatePickerMode] = useState(null); // "start" or "end"
     const [dueStart, setDueStart] = useState(null);
     const [dueEnd, setDueEnd] = useState(null);
-    const [accounts, setAccounts] = useState([]);
+    const [paymentReports, setPaymentReports] = useState([]);
     const [searchOptions, setSearchOptions] = useState(true);
-    const [searchMode, setSearchMode] = useState(false);
     const [searchParams, setSearchParams] = useState({
-        titleOrContent: "",
+        titleOrDescription: "",
         startDate: "",
         endDate: "",
         types: [],
@@ -50,18 +49,25 @@ const ManageAccounts = ({ navigation }) => {
         message: "",
     });
 
-    const fetchSearchedAccounts = async (pageNumber = 1) => {
+    const fetchSearchedPaymentReports = async (pageNumber = 1) => {
         try {
             setLoading(true);
             setSearchOptions(false);
-            setAccounts([]);
-            const query = new URLSearchParams({
+            setPaymentReports([]);
+
+            // Remove commas from numeric values before sending to backend
+            const sanitizedParams = {
                 ...searchParams,
+                minAmount: searchParams.minAmount.replace(/,/g, ''),
+                maxAmount: searchParams.maxAmount.replace(/,/g, ''),
                 types: searchParams.types.join(","),
-                page: pageNumber,
-            });
-            const response = await privateAxios.get(`/private/manage-search-accounts?${query}`);
-            setAccounts(response.data.payments || []);
+                page: pageNumber
+            };
+
+            const query = new URLSearchParams(sanitizedParams);
+            
+            const response = await privateAxios.get(`/private/manage-search-payment-reports?${query}`);
+            setPaymentReports(response.data.paymentReports || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
         } catch (error) {
@@ -92,8 +98,7 @@ const ManageAccounts = ({ navigation }) => {
     };
 
     const handleSearch = () => {
-        setSearchMode(true);
-        fetchSearchedAccounts(1);
+        fetchSearchedPaymentReports(1);
     };
 
     const toggleType = (type) => {
@@ -116,14 +121,14 @@ const ManageAccounts = ({ navigation }) => {
     const handleNextPage = () => {
         if (currentPage < totalPages) {
             const nextPage = currentPage + 1;
-            searchMode ? fetchSearchedAccounts(nextPage) : fetchAccounts(nextPage);
+            fetchSearchedPaymentReports(nextPage);
         }
     };
 
     const handlePreviousPage = () => {
         if (currentPage > 1) {
             const prevPage = currentPage - 1;
-            searchMode ? fetchSearchedAccounts(prevPage) : fetchAccounts(prevPage);
+            fetchSearchedPaymentReports(prevPage);
         }
     };
 
@@ -200,7 +205,7 @@ const ManageAccounts = ({ navigation }) => {
         const csv = header + rows.join("\n");
 
         // Save to file
-        const fileUri = FileSystem.cacheDirectory + "accounts.csv";
+        const fileUri = FileSystem.cacheDirectory + "Payment-Reports.csv";
         await FileSystem.writeAsStringAsync(fileUri, csv, {
             encoding: FileSystem.EncodingType.UTF8,
         });
@@ -211,6 +216,12 @@ const ManageAccounts = ({ navigation }) => {
         } else {
             alert("Exported to: " + fileUri);
         }
+    };
+
+    const formatWithCommas = (value) => {
+        const numericValue = value.replace(/,/g, ''); // remove existing commas
+        if (!numericValue) return '';
+        return parseFloat(numericValue).toLocaleString('en-US');
     };
 
     const truncateTitle = (title) => {
@@ -228,7 +239,7 @@ const ManageAccounts = ({ navigation }) => {
                         onPress={() => setSearchOptions(!searchOptions)}
                     >
                         <Text style={{ color: colors.mainButtonText }}>
-                            {searchOptions ? "Hide Filter" : "Filter Account"}
+                            {searchOptions ? "Hide Filter" : "Filter Payment Reports"}
                         </Text>
                     </Pressable>
 
@@ -242,11 +253,11 @@ const ManageAccounts = ({ navigation }) => {
                                     stylesConfig.INPUT,
                                     { backgroundColor: colors.inputBackground, color: colors.text },
                                 ]}
-                                placeholder="Title or content"
+                                placeholder="Title or description"
                                 placeholderTextColor={colors.placeholder}
-                                value={searchParams.titleOrContent}
+                                value={searchParams.titleOrDescription}
                                 onChangeText={(text) =>
-                                    setSearchParams((prev) => ({ ...prev, titleOrContent: text }))
+                                    setSearchParams((prev) => ({ ...prev, titleOrDescription: text }))
                                 }
                             />
 
@@ -305,9 +316,10 @@ const ManageAccounts = ({ navigation }) => {
                                     placeholderTextColor={colors.placeholder}
                                     keyboardType="numeric"
                                     value={searchParams.minAmount}
-                                    onChangeText={(text) =>
-                                        setSearchParams((prev) => ({ ...prev, minAmount: text }))
-                                    }
+                                    onChangeText={(text) => {
+                                        const formatted = formatWithCommas(text);
+                                        setSearchParams((prev) => ({ ...prev, minAmount: formatted }));
+                                    }}
                                 />
                                 <TextInput
                                     style={[
@@ -318,11 +330,13 @@ const ManageAccounts = ({ navigation }) => {
                                     placeholderTextColor={colors.placeholder}
                                     keyboardType="numeric"
                                     value={searchParams.maxAmount}
-                                    onChangeText={(text) =>
-                                        setSearchParams((prev) => ({ ...prev, maxAmount: text }))
-                                    }
+                                    onChangeText={(text) => {
+                                        const formatted = formatWithCommas(text);
+                                        setSearchParams((prev) => ({ ...prev, maxAmount: formatted }));
+                                    }}
                                 />
                             </View>
+
 
                             {/* Published Status */}
                             <View style={{ marginTop: 10 }}>
@@ -433,18 +447,18 @@ const ManageAccounts = ({ navigation }) => {
                                         <Text style={{ color: colors.text }}>{dueEnd || "Select Due End"}</Text>
                                     </Pressable>
                                     {/* Clear Due Date */}
-                                {(dueStart || dueEnd) && (
-                                    <Pressable
-                                        onPress={() => {
-                                            setDueStart(null);
-                                            setDueEnd(null);
-                                            setSearchParams((prev) => ({ ...prev, dueStart: "", dueEnd: "" }));
-                                        }}
-                                        style={[stylesConfig.BUTTON, { marginBottom: 15, justifyContent: 'center', backgroundColor: colors.border }]}
-                                    >
-                                        <Text style={{ color: colors.text }}>Clear</Text>
-                                    </Pressable>
-                                )}
+                                    {(dueStart || dueEnd) && (
+                                        <Pressable
+                                            onPress={() => {
+                                                setDueStart(null);
+                                                setDueEnd(null);
+                                                setSearchParams((prev) => ({ ...prev, dueStart: "", dueEnd: "" }));
+                                            }}
+                                            style={[stylesConfig.BUTTON, { marginBottom: 15, justifyContent: 'center', backgroundColor: colors.border }]}
+                                        >
+                                            <Text style={{ color: colors.text }}>Clear</Text>
+                                        </Pressable>
+                                    )}
                                 </View>
                             </View>
 
@@ -488,7 +502,7 @@ const ManageAccounts = ({ navigation }) => {
                                     },
                                 ]}
                                 disabled={loading}
-                                onPress={handleSearch}
+                                onPress={() => { handleSearch(); setSearchOptions(false); }}
                             >
                                 <Text style={{ color: colors.mainButtonText }}>
                                     {loading ? "Searching..." : "Search"}
@@ -545,7 +559,7 @@ const ManageAccounts = ({ navigation }) => {
                 stylesConfig.CARD,
                 { borderColor: colors.border, backgroundColor: colors.secondary },
             ]}
-            onPress={() => navigation.navigate('manage-account', { id: item._id, accountType: item.type })}
+            onPress={() => navigation.navigate('manage-payment-report', { id: item._id, paymentType: item.type })}
         >
             <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.text, fontWeight: "bold" }}>
@@ -578,7 +592,7 @@ const ManageAccounts = ({ navigation }) => {
                 <View style={{ alignItems: "center", justifyContent: "center", padding: 20 }}>
                     <ActivityIndicator size="large" color={colors.primary} />
                     <Text style={{ color: colors.text, marginTop: 10 }}>
-                        Loading Accounts...
+                        Loading Payment Reports...
                     </Text>
                 </View>
             );
@@ -586,7 +600,7 @@ const ManageAccounts = ({ navigation }) => {
         return (
             <View style={{ alignItems: "center", justifyContent: "center", padding: 20 }}>
                 <Text style={{ color: colors.text, marginTop: 10 }}>
-                    There are no accounts to display.
+                    There are no payment reports to display.
                 </Text>
             </View>
         );
@@ -603,9 +617,7 @@ const ManageAccounts = ({ navigation }) => {
                     />
 
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                        <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text }]}>
-                            Manage Accounts
-                        </Text>
+                        <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text, flexShrink: 1 }]}>Manage Payment Reports</Text>
                         <Pressable
                             style={{
                                 backgroundColor: colors.primary,
@@ -615,7 +627,7 @@ const ManageAccounts = ({ navigation }) => {
                                 padding: 5,
                                 height: 30,
                             }}
-                            onPress={() => exportToCSV(accounts)}
+                            onPress={() => exportToCSV(paymentReports)}
                         >
                             <Text style={{ color: colors.mainButtonText }}>Export This Record</Text>
                         </Pressable>
@@ -623,7 +635,7 @@ const ManageAccounts = ({ navigation }) => {
                 </View>
 
                 <FlatList
-                    data={accounts}
+                    data={paymentReports}
                     keyExtractor={(item) => item._id}
                     renderItem={renderItem}
                     ListHeaderComponent={memoizedRenderListSearch}
@@ -647,4 +659,4 @@ const ManageAccounts = ({ navigation }) => {
     );
 };
 
-export default ManageAccounts;
+export default ManagePaymentReport;

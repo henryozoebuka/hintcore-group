@@ -1,10 +1,10 @@
 import express from 'express';
-import { createPayment, getPaymentDetails, manageAccount, manageDeletePayment, manageDeletePayments, manageEditPayment, manageFetchEditPayment, manageGetPaymentMembers, manageMarkPaymentsAsPaid, manageMarkPaymentsAsUnpaid, managePayment, managePayments, manageSearchAccounts, manageSearchPayments, manageUpdateContributionPayment, manageUpdateDonationPayment, manageUpdateRequiredPayment, payments } from '../controllers/paymentControllers.js';
+import { createPayment, getPaymentDetails, manageDeletePayment, manageDeletePayments, manageEditPayment, manageFetchEditPayment, manageGetPaymentMembers, manageMarkPaymentsAsPaid, manageMarkPaymentsAsUnpaid, managePayment, managePaymentReport, managePayments, manageSearchPaymentReports, manageSearchPayments, manageUpdateContributionPayment, manageUpdateDonationPayment, manageUpdateRequiredPayment, payments } from '../controllers/paymentControllers.js';
 import { checkPermissionToken } from '../middlewares/checkTokens.js';
 
 const paymentRouter = express.Router();
 
-paymentRouter.post('/private/create-payment', checkPermissionToken(['admin',]), createPayment);
+paymentRouter.post('/private/create-payment', checkPermissionToken(['admin', 'manage_payments']), createPayment);
 paymentRouter.get('/private/manage-payments', checkPermissionToken(['admin', 'manage_payments']), managePayments);
 paymentRouter.get('/private/manage-search-payments', checkPermissionToken(['admin', 'manage_payments']), manageSearchPayments);
 paymentRouter.get('/private/payment/:id', checkPermissionToken(['user', 'admin', 'manage_payments']), getPaymentDetails);
@@ -23,7 +23,7 @@ paymentRouter.patch('/private/manage-edit-contribution-payment/:id', checkPermis
 paymentRouter.delete('/private/manage-delete-payment/:id', checkPermissionToken(['admin', 'manage_payments']), manageDeletePayment);
 paymentRouter.post('/private/manage-delete-payments', checkPermissionToken(['admin', 'manage_payments']), manageDeletePayments);
 
-paymentRouter.get('/private/manage-search-accounts', checkPermissionToken(['admin', 'manage_accounts']), manageSearchAccounts);
-paymentRouter.get('/private/manage-account/:id', checkPermissionToken(['admin', 'manage_accounts']), manageAccount);
+paymentRouter.get('/private/manage-search-payment-reports', checkPermissionToken(['admin', 'manage_accounts']), manageSearchPaymentReports);
+paymentRouter.get('/private/manage-payment-report/:id', checkPermissionToken(['admin', 'manage_accounts']), managePaymentReport);
 
 export default paymentRouter;

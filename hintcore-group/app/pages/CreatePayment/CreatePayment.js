@@ -92,14 +92,6 @@ const CreatePayment = ({ navigation }) => {
     }
   };
 
-  // const handleUserAmountChange = (userId, amountValue) => {
-  //   setSelectedUsers(prev => prev.map(u => {
-  //     if (u.userId === userId) {
-  //       return { ...u, amountPaid: amountValue };
-  //     }
-  //     return u;
-  //   }));
-  // };
 
   const handleSubmit = async () => {
     // Basic validation
@@ -150,7 +142,7 @@ const CreatePayment = ({ navigation }) => {
         setNotification({ visible: true, type: "success", message: response.data.message || "Payment created successfully" });
         setTimeout(() => {
           setNotification({ visible: false, type: "", message: "" });
-          navigation.navigate("manage-payments");
+          navigation.replace("manage-payments");
         }, 3000);
       } else {
         // unexpected status

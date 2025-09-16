@@ -9,6 +9,7 @@ import announcementRouter from './routes/announcementRoutes.js';
 import minutesRouter from './routes/minutesRoutes.js';
 import constitutionRouter from './routes/constitutionRoutes.js';
 import paymentRouter from './routes/paymentRoutes.js';
+import expenseRouter from './routes/expenseRoutes.js';
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use('/', announcementRouter);
 app.use('/', minutesRouter);
 app.use('/', constitutionRouter);
 app.use('/', paymentRouter);
+app.use('/', expenseRouter);
 
 const PORT = process.env.PORT || 3002;
 app.get('/hello', (req, res) => { res.send('Hello') });

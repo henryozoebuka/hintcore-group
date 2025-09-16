@@ -21,7 +21,7 @@ const Announcements = ({ navigation }) => {
     const [announcements, setAnnouncements] = useState([]);
     const [searchOptions, setSearchOptions] = useState(false);
     const [searchMode, setSearchMode] = useState(false);
-    const [searchParams, setSearchParams] = useState({ titleOrContent: "", date: "" });
+    const [searchParams, setSearchParams] = useState({ titleOrDescription: "", date: "" });
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [loading, setLoading] = useState(false);
@@ -136,7 +136,7 @@ const Announcements = ({ navigation }) => {
 
                 {searchOptions && (
                     <View style={{ marginVertical: 10 }}>
-                        {/* Title or Content Input */}
+                        {/* Title or description Input */}
                         <TextInput
                             style={[
                                 stylesConfig.INPUT,
@@ -145,13 +145,13 @@ const Announcements = ({ navigation }) => {
                                     color: colors.text,
                                 },
                             ]}
-                            placeholder="Title or content"
+                            placeholder="Title or description"
                             placeholderTextColor={colors.placeholder}
-                            value={searchParams.titleOrContent}
+                            value={searchParams.titleOrDescription}
                             onChangeText={(text) =>
                                 setSearchParams({
                                     ...searchParams,
-                                    titleOrContent: text,
+                                    titleOrDescription: text,
                                 })
                             }
                         />

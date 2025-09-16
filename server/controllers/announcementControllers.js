@@ -1,7 +1,9 @@
 import AnnouncementModel from "../models/announcementModel.js";
 import UserModel from '../models/userModel.js';
+import GroupModel from '../models/groupModel.js';
 import nodemailer from 'nodemailer';
 import mongoose from "mongoose";
+import { Expo } from "expo-server-sdk";
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -11,6 +13,47 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// export const createAnnouncement = async (req, res) => {
+//   const { title, body, published } = req.body;
+//   const { userId: createdBy, currentGroupId: groupId } = req.user;
+
+//   if (!mongoose.Types.ObjectId.isValid(createdBy) || !mongoose.Types.ObjectId.isValid(groupId)) {
+//     return res.status(400).json({ message: "Invalid IDs in token" });
+//   }
+
+//   if (!title || !body || !createdBy || !groupId) {
+//     return res.status(400).json({ message: 'Missing required fields.' });
+//   }
+
+//   try {
+//     const userExists = await UserModel.findById(createdBy);
+//     if (!userExists) {
+//       return res.status(404).json({ message: 'User not found.' });
+//     }
+
+//     const newAnnouncement = await AnnouncementModel.create({
+//       title,
+//       body,
+//       createdBy,
+//       published,
+//       group: groupId, // <-- Make sure to set 'group' field, not 'groupId'
+//     });
+
+//     if (!newAnnouncement) {
+//       return res.status(500).json({ message: 'Something went wrong while creating announcement.' });
+//     }
+
+//     res.status(201).json({ message: 'Announcement created successfully!' });
+
+//   } catch (error) {
+//     console.error('Error creating announcement:', error);
+//     res.status(500).json({ message: `Internal Server Error: ${error.message}` });
+//   }
+// };
+
+
+const expo = new Expo();
+
 export const createAnnouncement = async (req, res) => {
   const { title, body, published } = req.body;
   const { userId: createdBy, currentGroupId: groupId } = req.user;
@@ -19,32 +62,69 @@ export const createAnnouncement = async (req, res) => {
     return res.status(400).json({ message: "Invalid IDs in token" });
   }
 
-  if (!title || !body || !createdBy || !groupId) {
-    return res.status(400).json({ message: 'Missing required fields.' });
+  if (!title || !body) {
+    return res.status(400).json({ message: "Missing required fields." });
   }
 
   try {
     const userExists = await UserModel.findById(createdBy);
     if (!userExists) {
-      return res.status(404).json({ message: 'User not found.' });
+      return res.status(404).json({ message: "User not found." });
     }
 
+    // ✅ Create announcement
     const newAnnouncement = await AnnouncementModel.create({
       title,
       body,
       createdBy,
       published,
-      group: groupId, // <-- Make sure to set 'group' field, not 'groupId'
+      group: groupId,
     });
 
     if (!newAnnouncement) {
-      return res.status(500).json({ message: 'Something went wrong while creating announcement.' });
+      return res.status(500).json({ message: "Something went wrong while creating announcement." });
     }
 
-    res.status(201).json({ message: 'Announcement created successfully!' });
+    // ✅ Get group with members
+    const group = await GroupModel.findById(groupId).populate("members.user");
+    if (!group) {
+      return res.status(404).json({ message: "Group not found." });
+    }
+
+    // ✅ Collect device tokens from members who enabled notifications
+    let pushMessages = [];
+    for (const member of group.members) {
+      if (member.notificationsEnabled && member.user?.deviceTokens?.length > 0) {
+        for (const token of member.user.deviceTokens) {
+          if (Expo.isExpoPushToken(token)) {
+            pushMessages.push({
+              to: token,
+              sound: "default",
+              title: title,
+              body: body,
+              data: { announcementId: newAnnouncement._id },
+            });
+          } else {
+            console.warn(`Skipping invalid token: ${token}`);
+          }
+        }
+      }
+    }
+
+    // ✅ Send in chunks
+    const chunks = expo.chunkPushNotifications(pushMessages);
+    for (const chunk of chunks) {
+      try {
+        await expo.sendPushNotificationsAsync(chunk);
+      } catch (err) {
+        console.error("Error sending push notifications:", err);
+      }
+    }
+
+    res.status(201).json({ message: "Announcement created and notifications sent!" });
 
   } catch (error) {
-    console.error('Error creating announcement:', error);
+    console.error("Error creating announcement:", error);
     res.status(500).json({ message: `Internal Server Error: ${error.message}` });
   }
 };
@@ -164,7 +244,7 @@ export const searchAnnouncements = async (req, res) => {
   }
 
   try {
-    const { titleOrContent, date, page = 1, limit = 10 } = req.query;
+    const { titleOrDescription, date, page = 1, limit = 10 } = req.query;
 
     if (!groupId) {
       return res.status(400).json({ message: "Group ID is required." });
@@ -175,10 +255,10 @@ export const searchAnnouncements = async (req, res) => {
       published: true,
     };
 
-    if (titleOrContent?.trim()) {
+    if (titleOrDescription?.trim()) {
       query.$or = [
-        { title: { $regex: titleOrContent.trim(), $options: "i" } },
-        { body: { $regex: titleOrContent.trim(), $options: "i" } },
+        { title: { $regex: titleOrDescription.trim(), $options: "i" } },
+        { body: { $regex: titleOrDescription.trim(), $options: "i" } },
       ];
     }
 
@@ -218,7 +298,7 @@ export const manageSearchAnnouncements = async (req, res) => {
   }
 
   try {
-    const { titleOrContent, date, page = 1, limit = 10 } = req.query;
+    const { titleOrDescription, date, page = 1, limit = 10 } = req.query;
 
     if (!currentGroupId) {
       return res.status(400).json({ message: "Group ID is required." });
@@ -227,10 +307,10 @@ export const manageSearchAnnouncements = async (req, res) => {
     const query = { group: currentGroupId };
 
     // Title or content regex
-    if (titleOrContent?.trim()) {
+    if (titleOrDescription?.trim()) {
       query.$or = [
-        { title: { $regex: titleOrContent.trim(), $options: "i" } },
-        { body: { $regex: titleOrContent.trim(), $options: "i" } },
+        { title: { $regex: titleOrDescription.trim(), $options: "i" } },
+        { body: { $regex: titleOrDescription.trim(), $options: "i" } },
       ];
     }
 

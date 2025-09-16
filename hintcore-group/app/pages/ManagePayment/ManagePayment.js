@@ -364,7 +364,7 @@ const ManagePayment = ({ navigation }) => {
                         <Text style={{ color: colors.text, marginBottom: 4 }}>Required: {payment?.type === 'required' ? 'Yes' : 'No'}</Text>
                         <Text style={{ color: colors.text }}>Published: {payment?.published ? 'Yes' : 'No'}</Text>
                         <Text style={{ color: colors.text }}>Created By: {payment?.createdBy?.fullName}</Text>
-                        <Text style={{ color: colors.text }}>Created By: {moment(payment?.createdAt).format('MMMM DD, YYYY')}</Text>
+                        <Text style={{ color: colors.text }}>Created On: {moment(payment?.createdAt).format('MMMM DD, YYYY')}</Text>
                     </Animated.View>
 
                     <Pressable onPress={toggleExpand} style={{ marginBottom: 20, alignItems: 'center' }}>

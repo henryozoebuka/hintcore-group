@@ -73,11 +73,17 @@ const ManagementDashboard = ({ navigation }) => {
           <Pressable onPress={() => navigation.navigate('manage-payments')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
             <Text style={{ fontSize: 18, color: colors.text }}>Manage Payments</Text>
           </Pressable>
+          <Pressable onPress={() => navigation.navigate('manage-expenses')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
+            <Text style={{ fontSize: 18, color: colors.text }}>Manage Expenses</Text>
+          </Pressable>
           <Pressable onPress={() => navigation.navigate('manage-users')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
             <Text style={{ fontSize: 18, color: colors.text }}>Manage Users</Text>
           </Pressable>
-          <Pressable onPress={() => navigation.navigate('manage-accounts')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
-            <Text style={{ fontSize: 18, color: colors.text }}>Manage Accounts</Text>
+          <Pressable onPress={() => navigation.navigate('manage-payment-reports')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
+            <Text style={{ fontSize: 18, color: colors.text }}>Manage Payment Reports</Text>
+          </Pressable>
+          <Pressable onPress={() => navigation.navigate('manage-expense-reports')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
+            <Text style={{ fontSize: 18, color: colors.text }}>Manage Expense Reports</Text>
           </Pressable>
 
         </ScrollView>

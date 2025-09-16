@@ -165,7 +165,7 @@ export const searchConstitutions = async (req, res) => {
   }
 
   try {
-    const { titleOrContent, date, page = 1, limit = 10 } = req.query;
+    const { titleOrDescription, date, page = 1, limit = 10 } = req.query;
 
     if (!groupId) {
       return res.status(400).json({ message: "Group ID is required." });
@@ -176,10 +176,10 @@ export const searchConstitutions = async (req, res) => {
       published: true,
     };
 
-    if (titleOrContent?.trim()) {
+    if (titleOrDescription?.trim()) {
       query.$or = [
-        { title: { $regex: titleOrContent.trim(), $options: "i" } },
-        { body: { $regex: titleOrContent.trim(), $options: "i" } },
+        { title: { $regex: titleOrDescription.trim(), $options: "i" } },
+        { body: { $regex: titleOrDescription.trim(), $options: "i" } },
       ];
     }
 
@@ -217,7 +217,7 @@ export const manageSearchConstitutions = async (req, res) => {
     return res.status(400).json({ message: "Invalid IDs in token" });
   }
   try {
-    const { titleOrContent, date, page = 1, limit = 10 } = req.query;
+    const { titleOrDescription, date, page = 1, limit = 10 } = req.query;
 
     if (!currentGroupId) {
       return res.status(400).json({ message: "Group ID is required." });
@@ -226,10 +226,10 @@ export const manageSearchConstitutions = async (req, res) => {
     const query = { group: currentGroupId };
 
     // Title or content regex
-    if (titleOrContent?.trim()) {
+    if (titleOrDescription?.trim()) {
       query.$or = [
-        { title: { $regex: titleOrContent.trim(), $options: "i" } },
-        { body: { $regex: titleOrContent.trim(), $options: "i" } },
+        { title: { $regex: titleOrDescription.trim(), $options: "i" } },
+        { body: { $regex: titleOrDescription.trim(), $options: "i" } },
       ];
     }
 
