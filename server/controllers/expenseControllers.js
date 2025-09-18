@@ -52,6 +52,142 @@ export const createExpense = async (req, res) => {
   }
 };
 
+export const getExpenses = async (req, res) => {
+  const { userId, currentGroupId } = req.user;
+
+  if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(currentGroupId)) {
+    return res.status(400).json({ message: "Invalid IDs in token" });
+  }
+
+  const page = parseInt(req.query.page) || 1;
+  const limit = 10;
+
+  try {
+    // Count total published expenses in the group
+    const totalExpenses = await ExpenseModel.countDocuments({
+      group: currentGroupId,
+      published: true,
+    });
+
+    // Fetch only necessary fields
+    const expenses = await ExpenseModel.find({
+      group: currentGroupId,
+      published: true,
+    })
+      .select('title createdAt') // only select needed fields
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+
+    const totalPages = Math.ceil(totalExpenses / limit);
+
+    res.status(200).json({
+      expenses,
+      totalPages,
+      currentPage: page,
+    });
+  } catch (error) {
+    console.error('Error fetching expenses:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+export const getExpense = async (req, res) => {
+  const { id } = req.params;
+  const { currentGroupId } = req.user;
+
+  if (!id) {
+    return res.status(400).json({ message: 'Expense ID is required.' });
+  }
+
+  if ((!mongoose.Types.ObjectId.isValid(id)) || (!mongoose.Types.ObjectId.isValid(currentGroupId))) {
+    return res.status(400).json({ message: 'Invalid ID(s) format.' });
+  }
+
+  try {
+    const expense = await ExpenseModel.findOne({ _id: id, group: currentGroupId })
+      .populate('createdBy', 'fullName'); // populate creator's full name
+
+    if (!expense) {
+      return res.status(404).json({ message: 'Expense not found.' });
+    }
+
+    return res.status(200).json({ expense });
+  } catch (error) {
+    console.error('Error fetching expense:', error);
+    return res.status(500).json({ message: 'Server error while fetching expense.' });
+  }
+};
+
+export const searchExpenses = async (req, res) => {
+  try {
+    const { titleOrDescription, minAmount, maxAmount, startDate, endDate, page = 1, limit = 10 } = req.query;
+    const { currentGroupId } = req.user;
+
+    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: "Invalid group ID." });
+    }
+
+    const group = await GroupModel.findById(currentGroupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found." });
+    }
+
+    // 🟢 Build query
+    let query = { group: currentGroupId, published: true };
+
+    // Title or Content search
+    if (titleOrDescription) {
+      query.$or = [
+        { title: { $regex: titleOrDescription.trim(), $options: "i" } },
+        { description: { $regex: titleOrDescription.trim(), $options: "i" } },
+      ];
+    }
+
+    // Amount Range Filter
+    if (minAmount || maxAmount) {
+      const amountFilter = {};
+      if (minAmount !== undefined && minAmount !== "") {
+        amountFilter.$gte = parseFloat(minAmount);
+      }
+      if (maxAmount !== undefined && maxAmount !== "") {
+        amountFilter.$lte = parseFloat(maxAmount);
+      }
+      query.amount = amountFilter;
+    }
+
+    // 🟢 Date Range
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999); // end of the day
+        query.createdAt.$lte = end;
+      }
+    }
+
+    // Pagination
+    const skip = (page - 1) * limit;
+
+    const [expenses, total] = await Promise.all([
+      ExpenseModel.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)),
+      ExpenseModel.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      expenses,
+      totalPages: Math.ceil(total / limit),
+      currentPage: Number(page),
+    });
+  } catch (error) {
+    console.error("Search Expenses Error:", error);
+    return res.status(500).json({ message: "An error occurred while searching expenses." });
+  }
+};
+
 export const manageExpenses = async (req, res) => {
   const { currentGroupId } = req.user;
 
@@ -127,7 +263,7 @@ export const manageExpense = async (req, res) => {
 
 export const manageSearchExpenses = async (req, res) => {
   try {
-    const { titleOrDescription, startDate, endDate, published, page = 1, limit = 10 } = req.query;
+    const { titleOrDescription, minAmount, maxAmount, startDate, endDate, published, page = 1, limit = 10 } = req.query;
     const { currentGroupId } = req.user;
 
     if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
@@ -148,6 +284,18 @@ export const manageSearchExpenses = async (req, res) => {
         { title: { $regex: titleOrDescription.trim(), $options: "i" } },
         { description: { $regex: titleOrDescription.trim(), $options: "i" } },
       ];
+    }
+
+    // Amount Range Filter
+    if (minAmount || maxAmount) {
+      const amountFilter = {};
+      if (minAmount !== undefined && minAmount !== "") {
+        amountFilter.$gte = parseFloat(minAmount);
+      }
+      if (maxAmount !== undefined && maxAmount !== "") {
+        amountFilter.$lte = parseFloat(maxAmount);
+      }
+      query.amount = amountFilter;
     }
 
     // 🟢 Date Range

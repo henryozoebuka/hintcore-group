@@ -337,7 +337,6 @@ const ManagePaymentReport = ({ navigation }) => {
                                 />
                             </View>
 
-
                             {/* Published Status */}
                             <View style={{ marginTop: 10 }}>
                                 <Text style={{ color: colors.text, fontWeight: "bold", marginBottom: 5 }}>

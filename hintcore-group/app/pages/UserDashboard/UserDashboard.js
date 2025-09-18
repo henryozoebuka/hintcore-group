@@ -189,6 +189,23 @@ export default function UserDashboard() {
             <Text>💰</Text>
             <Text style={{ color: colors.text, fontWeight: '600' }}>Payments</Text>
           </Pressable>
+
+          <Pressable
+            style={{
+              backgroundColor: colors.secondary,
+              padding: 5,
+              borderRadius: 12,
+              flexDirection: 'row',
+              columnGap: 5,
+              flexGrow: 1,
+              justifyContent: 'center',
+              minWidth: '45%',
+            }}
+            onPress={() => navigation.navigate('expenses')}
+          >
+            <Text>💰</Text>
+            <Text style={{ color: colors.text, fontWeight: '600' }}>Expenses</Text>
+          </Pressable>
         </View>
 
 

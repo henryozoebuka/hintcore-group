@@ -28,7 +28,7 @@ const EditProfile = () => {
     password: '',
     confirmPassword: '',
   });
-  
+
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [notification, setNotification] = useState({ visible: false, type: '', message: '' });
@@ -37,7 +37,7 @@ const EditProfile = () => {
   useEffect(() => {
     (async () => {
       try {
-        const response = await privateAxios.get(`/private/user-profile-edit`);
+        const response = await privateAxios.get(`/private/fetch-edit-profile`);
         const { fullName, phoneNumber, bio, gender } = response.data.user;
         setFormData((p) => ({ ...p, fullName, phoneNumber, bio: bio || '', gender }));
       } catch (err) {
@@ -54,107 +54,107 @@ const EditProfile = () => {
 
   const handleChange = (field, value) => setFormData((p) => ({ ...p, [field]: value }));
 
-const handleSubmit = async () => {
-  setLoading(true);
-  try {
-    if (editPasswords) {
-      const { oldPassword, password, confirmPassword } = formData;
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      if (editPasswords) {
+        const { oldPassword, password, confirmPassword } = formData;
 
-      if (!oldPassword || !password || !confirmPassword) {
-        setNotification({
-          visible: true,
-          type: 'error',
-          message: 'Fill all password fields.',
-        });
-        setTimeout(() => {
-          setNotification({ visible: false, type: '', message: '' });
-        }, 3000);
-        setLoading(false);
-        return;
+        if (!oldPassword || !password || !confirmPassword) {
+          setNotification({
+            visible: true,
+            type: 'error',
+            message: 'Fill all password fields.',
+          });
+          setTimeout(() => {
+            setNotification({ visible: false, type: '', message: '' });
+          }, 3000);
+          setLoading(false);
+          return;
+        }
+
+        if (password !== confirmPassword) {
+          setNotification({
+            visible: true,
+            type: 'error',
+            message: 'Passwords must match.',
+          });
+          setTimeout(() => {
+            setNotification({ visible: false, type: '', message: '' });
+          }, 3000);
+          setLoading(false);
+          return;
+        }
       }
 
-      if (password !== confirmPassword) {
-        setNotification({
-          visible: true,
-          type: 'error',
-          message: 'Passwords must match.',
-        });
-        setTimeout(() => {
-          setNotification({ visible: false, type: '', message: '' });
-        }, 3000);
-        setLoading(false);
-        return;
-      }
-    }
-
-    const payload = {
-      fullName: formData.fullName,
-      phoneNumber: formData.phoneNumber,
-      bio: formData.bio,
-      gender: formData.gender,
-    };
-
-    if (editPasswords) {
-      payload.oldPassword = formData.oldPassword;
-      payload.password = formData.password;
-    }
-
-    const response = await privateAxios.patch(`/private/update-user-profile`, payload);
-
-    if (response.status === 200) {
-      setNotification({
-        visible: true,
-        type: 'success',
-        message: 'Profile updated successfully',
-      });
-      setTimeout(() => {
-        setNotification({ visible: false, type: '', message: '' });
-        navigation.navigate('profile');
-      }, 3000);
+      const payload = {
+        fullName: formData.fullName,
+        phoneNumber: formData.phoneNumber,
+        bio: formData.bio,
+        gender: formData.gender,
+      };
 
       if (editPasswords) {
-        setFormData((p) => ({
-          ...p,
-          oldPassword: '',
-          password: '',
-          confirmPassword: '',
-        }));
-        setEditPasswords(false);
+        payload.oldPassword = formData.oldPassword;
+        payload.password = formData.password;
       }
+
+      const response = await privateAxios.patch(`/private/update-profile`, payload);
+
+      if (response.status === 200) {
+        setNotification({
+          visible: true,
+          type: 'success',
+          message: 'Profile updated successfully',
+        });
+        setTimeout(() => {
+          setNotification({ visible: false, type: '', message: '' });
+          navigation.navigate('profile');
+        }, 3000);
+
+        if (editPasswords) {
+          setFormData((p) => ({
+            ...p,
+            oldPassword: '',
+            password: '',
+            confirmPassword: '',
+          }));
+          setEditPasswords(false);
+        }
+      }
+
+    } catch (err) {
+      console.error('Update error:', err);
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Update failed. Try again.';
+
+      setNotification({
+        visible: true,
+        type: 'error',
+        message,
+      });
+
+      setTimeout(() => {
+        setNotification({ visible: false, type: '', message: '' });
+      }, 3000);
+    } finally {
+      setLoading(false);
     }
-
-  } catch (err) {
-    console.error('Update error:', err);
-    const message =
-      err?.response?.data?.message ||
-      err?.message ||
-      'Update failed. Try again.';
-
-    setNotification({
-      visible: true,
-      type: 'error',
-      message,
-    });
-
-    setTimeout(() => {
-      setNotification({ visible: false, type: '', message: '' });
-    }, 3000);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <View style={{ flex: 1 }}>
-                <Notification
-            visible={notification.visible}
-            type={notification.type}
-            message={notification.message}
-            onClose={() => setNotification({ visible: false, type: '', message: '' })}
-          />
+      <Notification
+        visible={notification.visible}
+        type={notification.type}
+        message={notification.message}
+        onClose={() => setNotification({ visible: false, type: '', message: '' })}
+      />
 
       {initialLoading ? (
-        <View style={[stylesConfig.CENTERED_CONTAINER, {backgroundColor: colors.background, flex: 1, alignItems: 'center', justifyContent: 'center',}]}>
+        <View style={[stylesConfig.CENTERED_CONTAINER, { backgroundColor: colors.background, flex: 1, alignItems: 'center', justifyContent: 'center', }]}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={{ color: colors.text, marginTop: 10 }}>Loading your data...</Text>
         </View>
@@ -173,42 +173,50 @@ const handleSubmit = async () => {
           <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text }]}>Edit Profile</Text>
 
           {/* Full Name */}
-          <TextInput
-            style={[stylesConfig.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
-            placeholder="Full Name"
-            placeholderTextColor={colors.placeholder}
-            value={formData.fullName}
-            onChangeText={(t) => handleChange('fullName', t)}
-          />
-
-          {/* Phone Number with + sign prefix */}
-          <View
-            style={[
-              stylesConfig.INPUT,
-              {
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: colors.inputBackground,
-                paddingHorizontal: 10,
-              },
-            ]}
-          >
-            {formData.phoneNumber && <Text style={{ color: colors.text, fontSize: 16, marginRight: 4 }}>+</Text>}
+          <View style={{ rowGap: 5 }}>
+            <Text style={{ color: colors.text, fontWeight: 'bold' }}>Fullname</Text>
             <TextInput
-              style={{
-                flex: 1,
-                color: colors.text,
-                fontSize: 16,
-              }}
-              placeholder="Phone Number"
+              style={[stylesConfig.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
+              placeholder="Full Name"
               placeholderTextColor={colors.placeholder}
-              keyboardType="phone-pad"
-              value={formData.phoneNumber}
-              onChangeText={(t) => handleChange('phoneNumber', t)}
+              value={formData.fullName}
+              onChangeText={(t) => handleChange('fullName', t)}
             />
           </View>
 
+          {/* Phone Number with + sign prefix */}
+          <View style={{ rowGap: 5 }}>
+            <Text style={{ color: colors.text, fontWeight: 'bold' }}>Phone Number</Text>
+            <View
+              style={[
+                stylesConfig.INPUT,
+                {
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: colors.inputBackground,
+                  paddingHorizontal: 10,
+                },
+              ]}
+            >
+              {formData.phoneNumber && <Text style={{ color: colors.text, fontSize: 16, marginRight: 4 }}>+</Text>}
+              <TextInput
+                style={{
+                  flex: 1,
+                  color: colors.text,
+                  fontSize: 16,
+                }}
+                placeholder="Phone Number"
+                placeholderTextColor={colors.placeholder}
+                keyboardType="phone-pad"
+                value={formData.phoneNumber}
+                onChangeText={(t) => handleChange('phoneNumber', t)}
+              />
+            </View>
+          </View>
+
           {/* Bio */}
+          <View style={{rowGap: 5}}>
+            <Text style={{color: colors.text, fontWeight: 'bold'}}>Bio</Text>
           <TextInput
             style={[
               stylesConfig.INPUT,
@@ -217,6 +225,7 @@ const handleSubmit = async () => {
                 color: colors.text,
                 height: 200,
                 textAlignVertical: 'top',
+                marginBottom: 0,
               },
             ]}
             placeholder="Bio (optional). This can be seen by any group you belong to."
@@ -229,6 +238,7 @@ const handleSubmit = async () => {
           <Text style={{ color: colors.placeholder, alignSelf: 'flex-end', marginBottom: 12 }}>
             {formData.bio.length}/300
           </Text>
+          </View>
 
           {/* Gender */}
           <View style={{ marginBottom: 10 }}>

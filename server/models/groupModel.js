@@ -50,7 +50,7 @@ const groupSchema = new mongoose.Schema({
             },
             notificationsEnabled: {
                 type: Boolean,
-                default: false
+                default: true,
             },
         },
     ],

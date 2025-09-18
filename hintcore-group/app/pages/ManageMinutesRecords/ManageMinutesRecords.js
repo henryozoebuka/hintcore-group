@@ -21,14 +21,17 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 const ManageMinutesRecords = ({ navigation }) => {
     const { colors } = useSelector((state) => state.colors);
     const [showDatePicker, setShowDatePicker] = useState(false);
-    const [selectedDate, setSelectedDate] = useState(null);
+    const [datePickerMode, setDatePickerMode] = useState(false);
+    const [startDate, setStartDate] = useState(null);
+    const [endDate, setEndDate] = useState(null);
     const [minutesRecords, setMinutesRecords] = useState([]);
     const [selectedMinutesRecords, setSelectedMinutesRecords] = useState([]);
     const [searchOptions, setSearchOptions] = useState(false);
     const [searchMode, setSearchMode] = useState(false);
-    const [searchParams, setSearchParams] = useState({ titleOrContent: "", date: "" });
+    const [searchParams, setSearchParams] = useState({ titleOrDescription: "", startDate: "", endDate: "", published: "" });
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [initialLoaded, setInitialLoaded] = useState(false);
     const [loading, setLoading] = useState(false);
     const [notification, setNotification] = useState({ visible: false, type: "", message: "" });
 
@@ -36,6 +39,7 @@ const ManageMinutesRecords = ({ navigation }) => {
         try {
             setLoading(true);
             const response = await privateAxios.get(`/private/manage-minutes-records?page=${pageNumber}`);
+            setInitialLoaded(true);
             setMinutesRecords(response.data.minutesRecords || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
@@ -69,9 +73,14 @@ const ManageMinutesRecords = ({ navigation }) => {
     const onChangeDate = (event, date) => {
         setShowDatePicker(false);
         if (date) {
-            const formattedDate = date.toISOString().split("T")[0]; // YYYY-MM-DD
-            setSelectedDate(formattedDate);
-            setSearchParams({ ...searchParams, date: formattedDate });
+            const formattedDate = date.toISOString().split("T")[0];
+            if (datePickerMode === "start") {
+                setStartDate(formattedDate);
+                setSearchParams(prev => ({ ...prev, startDate: formattedDate }));
+            } else if (datePickerMode === "end") {
+                setEndDate(formattedDate);
+                setSearchParams(prev => ({ ...prev, endDate: formattedDate }));
+            }
         }
     };
 
@@ -88,18 +97,21 @@ const ManageMinutesRecords = ({ navigation }) => {
 
     const confirmDeleteSelected = () => {
         if (!selectedMinutesRecords.length) return;
-        Alert.alert("Delete", `Delete ${selectedMinutesRecords.length} selected minutes record(s)?`, [
+        Alert.alert("Delete", `Delete ${selectedMinutesRecords.length} selected minutes record${selectedMinutesRecords > 1 ? 's' : ''}?`, [
             { text: "Cancel", style: "cancel" },
             {
                 text: "Delete",
                 style: "destructive",
                 onPress: async () => {
                     try {
+                        setLoading(true);
                         await privateAxios.post("/private/delete-minutes-records", { ids: selectedMinutesRecords });
                         setSelectedMinutesRecords([]);
                         searchMode ? fetchSearchedMinutesRecords(currentPage) : fetchMinutesRecords(currentPage);
                     } catch {
                         showError("Failed to delete minutes records.");
+                    } finally {
+                        setLoading(false);
                     }
                 },
             },
@@ -107,17 +119,20 @@ const ManageMinutesRecords = ({ navigation }) => {
     };
 
     const confirmDeleteSingle = (id) => {
-        Alert.alert("Delete", "Delete this minutes record?", [
+        Alert.alert("Delete", "Delete this minutes records?", [
             { text: "Cancel", style: "cancel" },
             {
                 text: "Delete",
                 style: "destructive",
                 onPress: async () => {
+                    setLoading(true);
                     try {
                         await privateAxios.delete(`/private/delete-minutes/${id}`);
                         searchMode ? fetchSearchedMinutesRecords(currentPage) : fetchMinutesRecords(currentPage);
                     } catch {
-                        showError("Failed to delete minutes record.");
+                        showError("Failed to delete minutes records.");
+                    } finally {
+                        setLoading(false);
                     }
                 },
             },
@@ -147,7 +162,7 @@ const ManageMinutesRecords = ({ navigation }) => {
         fetchMinutesRecords(1);
     }, []);
 
-    // Truncate title if it exceeds 25 characters
+    // Truncate title if it exceeds 20 characters
     const truncateTitle = (title) => {
         return title.length > 25 ? title.slice(0, 25) + "..." : title;
     };
@@ -161,28 +176,28 @@ const ManageMinutesRecords = ({ navigation }) => {
                     Manage Minutes Records
                 </Text>
 
-                {/* Create Minutes Record Button */}
+                {/* Create Minutes Records Button */}
                 <Pressable
                     style={[stylesConfig.BUTTON, { backgroundColor: colors.primary }]}
                     onPress={() => navigation.navigate("create-minutes")}
                 >
-                    <Text style={{ color: colors.mainButtonText }}>Create Minutes Record</Text>
+                    <Text style={{ color: colors.mainButtonText }}>Create Minutes</Text>
                 </Pressable>
 
                 {/* Search Options */}
-                {minutesRecords.length > 0 && 
-                <Pressable
-                    style={[stylesConfig.BUTTON, { backgroundColor: colors.primary }]}
-                    onPress={() => setSearchOptions(!searchOptions)}
-                >
-                    <Text style={{ color: colors.mainButtonText }}>
-                        {searchOptions ? "Hide Search Options" : "Show Search Options"}
-                    </Text>
-                </Pressable>}
+                {initialLoaded &&
+                    <Pressable
+                        style={[stylesConfig.BUTTON, { backgroundColor: colors.primary }]}
+                        onPress={() => setSearchOptions(!searchOptions)}
+                    >
+                        <Text style={{ color: colors.mainButtonText }}>
+                            {searchOptions ? "Hide Filter" : "Filter Minutes Records"}
+                        </Text>
+                    </Pressable>}
 
                 {searchOptions && (
                     <View style={{ marginVertical: 10 }}>
-                        {/* Title or Content Input */}
+                        {/* Title or description Input */}
                         <TextInput
                             style={[
                                 stylesConfig.INPUT,
@@ -191,48 +206,140 @@ const ManageMinutesRecords = ({ navigation }) => {
                                     color: colors.text,
                                 },
                             ]}
-                            placeholder="Title or content"
+                            placeholder="Title or description"
                             placeholderTextColor={colors.placeholder}
-                            value={searchParams.titleOrContent}
+                            value={searchParams.titleOrDescription}
                             onChangeText={(text) =>
                                 setSearchParams({
                                     ...searchParams,
-                                    titleOrContent: text,
+                                    titleOrDescription: text,
                                 })
                             }
                         />
 
-                        {/* 📅 Date Picker + ❌ Clear Date in a row */}
-                        <View style={{ flexDirection: "row", marginTop: 10, justifyContent: 'center' }}>
-                            {/* Date Field */}
-                            <Pressable style={[stylesConfig.INPUT, { flex: 1, backgroundColor: colors.inputBackground, borderColor: colors.inputBackground, borderWidth: 1, justifyContent: "center", paddingVertical: 12, },]} onPress={() => setShowDatePicker(true)}>
-                                <Text style={{ color: selectedDate ? colors.text : colors.placeholder }}> {selectedDate || "Select Date"}</Text>
-                            </Pressable>
-
-                            {/* Clear Button - only shows if a date is selected */}
-                            {selectedDate && (
-                                <Pressable onPress={() => { setSelectedDate(null); setSearchParams({ ...searchParams, date: "" }); }} style={{ marginLeft: 10, paddingVertical: 12, paddingHorizontal: 12, backgroundColor: colors.border, borderRadius: 6, marginBottom: 16 }}>
-                                    <Text style={{ color: colors.text }}>Clear</Text>
+                        {/* Published Status */}
+                        <View style={{ marginTop: 10 }}>
+                            <Text style={{ color: colors.text, fontWeight: "bold", marginBottom: 5 }}>
+                                Published Status
+                            </Text>
+                            {["", "true", "false"].map((val) => (
+                                <Pressable
+                                    key={val}
+                                    onPress={() =>
+                                        setSearchParams((prev) => ({ ...prev, published: val }))
+                                    }
+                                    style={{ flexDirection: "row", alignItems: "center", marginBottom: 5 }}
+                                >
+                                    <View
+                                        style={{
+                                            width: 20,
+                                            height: 20,
+                                            borderWidth: 1,
+                                            borderColor: colors.border,
+                                            borderRadius: 5,
+                                            backgroundColor: searchParams.published === val
+                                                ? colors.primary
+                                                : "transparent",
+                                            marginRight: 5,
+                                        }}
+                                    />
+                                    <Text style={{ color: colors.text }}>
+                                        {val === ""
+                                            ? "All"
+                                            : val === "true"
+                                                ? "Published"
+                                                : "Unpublished"}
+                                    </Text>
                                 </Pressable>
-                            )}
+                            ))}
                         </View>
 
                         {/* DateTimePicker Component */}
-                        {showDatePicker && (
-                            <DateTimePicker
-                                value={selectedDate ? new Date(selectedDate) : new Date()}
-                                mode="date"
-                                display="default"
-                                onChange={onChangeDate}
-                            />
-                        )}
+                        <View>
+                            <Text style={{ fontWeight: 'bold', color: colors.text }}>Date Created</Text>
+                            {/* 📅 Date Range */}
+                            <View style={{ flexDirection: "row", marginTop: 10, columnGap: 10, alignItems: "center" }}>
+                                {/* Start Date */}
+                                <Pressable
+                                    style={{
+                                        flex: 1,
+                                        backgroundColor: colors.inputBackground,
+                                        borderColor: colors.inputBackground,
+                                        borderWidth: 1,
+                                        borderRadius: 10,
+                                        justifyContent: "center",
+                                        paddingVertical: 12,
+                                    }}
+                                    onPress={() => { setDatePickerMode("start"); setShowDatePicker(true); }}
+                                >
+                                    <Text style={{ color: startDate ? colors.text : colors.placeholder, textAlign: 'center' }}>
+                                        {startDate || "Start Date"}
+                                    </Text>
+                                </Pressable>
+
+                                {/* End Date */}
+                                <Pressable
+                                    style={{
+                                        flex: 1,
+                                        backgroundColor: colors.inputBackground,
+                                        borderColor: colors.inputBackground,
+                                        borderWidth: 1,
+                                        justifyContent: "center",
+                                        paddingVertical: 12,
+                                        borderRadius: 10,
+                                    }}
+                                    onPress={() => { setDatePickerMode("end"); setShowDatePicker(true); }}
+                                >
+                                    <Text style={{ color: endDate ? colors.text : colors.placeholder, textAlign: 'center' }}>
+                                        {endDate || "End Date"}
+                                    </Text>
+                                </Pressable>
+
+                                {/* Clear */}
+                                {(startDate || endDate) && (
+                                    <Pressable
+                                        onPress={() => {
+                                            setStartDate(null);
+                                            setEndDate(null);
+                                            setSearchParams(prev => ({ ...prev, startDate: "", endDate: "" }));
+                                        }}
+                                        style={{
+                                            paddingVertical: 12,
+                                            paddingHorizontal: 12,
+                                            backgroundColor: colors.border,
+                                            borderRadius: 6,
+                                            alignSelf: "center",
+                                        }}
+                                    >
+                                        <Text style={{ color: colors.text }}>Clear</Text>
+                                    </Pressable>
+                                )}
+                            </View>
+
+                            {/* Date Picker Component */}
+                            {showDatePicker && (
+                                <DateTimePicker
+                                    value={
+                                        (datePickerMode === "start" && startDate
+                                            ? new Date(startDate)
+                                            : datePickerMode === "end" && endDate
+                                                ? new Date(endDate)
+                                                : new Date())
+                                    }
+                                    mode="date"
+                                    display="default"
+                                    onChange={onChangeDate}
+                                />
+                            )}
+
+                        </View>
 
                         {/* 🔍 Search Button */}
                         <Pressable
-                            style={[stylesConfig.BUTTON, { backgroundColor: colors.primary, marginTop: 10, flexDirection: 'row', columnGap: 10, justifyContent: 'center' }]}
-                            onPress={handleSearch}
+                            style={[stylesConfig.BUTTON, { backgroundColor: loading ? colors.border : colors.primary, marginTop: 10, flexDirection: 'row', columnGap: 10, justifyContent: 'center' }]}
+                            onPress={() => {handleSearch(); setSearchOptions(false);}}
+                            disabled={loading}
                         >
-                            {loading && <ActivityIndicator color={colors.mainButtonText} />}
                             <Text style={{ color: colors.mainButtonText }}>{loading ? 'Searching...' : 'Search'}</Text>
                         </Pressable>
                     </View>
@@ -292,7 +399,7 @@ const ManageMinutesRecords = ({ navigation }) => {
                                 <View style={{ flexDirection: "row" }}>
                                     <Pressable
                                         style={[stylesConfig.SMALL_BUTTON]}
-                                        onPress={() => navigation.navigate("manage-edit-minutes-record", { id: item._id })}
+                                        onPress={() => navigation.navigate("manage-edit-minutes", { id: item._id })}
                                     >
                                         <Ionicons name="create-outline" size={24} color="#007bff" />
                                     </Pressable>

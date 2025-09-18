@@ -5,6 +5,7 @@ import Profile from '../pages/Profile/Profile';
 import UserDashboard from '../pages/UserDashboard/UserDashboard';
 import ManagementDashboard from '../pages/ManagementDashboard/ManagementDashboard';
 import ManageUsers from '../pages/ManageUsers/ManageUsers';
+import ManageMembers from '../pages/ManageMembers/ManageMembers';
 import CreateAnnouncement from '../pages/CreateAnnouncement/CreateAnnouncement';
 import ManageAnnouncements from '../pages/ManageAnnouncements/ManageAnnouncements';
 import ManageAnnouncement from '../pages/ManageAnnoucement/ManageAnnoucement';
@@ -41,6 +42,11 @@ import ManageExpenses from '../pages/ManageExpenses/ManageExpenses';
 import ManageExpense from '../pages/ManageExpense/ManageExpense';
 import ManageEditExpense from '../pages/ManageEditExpense/ManageEditExpense';
 import ManageExpenseReports from '../pages/ManageExpenseReports/ManageExpenseReports';
+import Expense from '../pages/Expense/Expense';
+import Expenses from '../pages/Expenses/Expenses';
+import ManageProfile from '../pages/ManageProfile/ManageProfile';
+import ManageGroupInformation from '../pages/ManageGroupInformation/ManageGroupInformation';
+import ManageEditProfile from '../pages/ManageEditProfile/ManageEditProfile';
 
 const Stack = createStackNavigator();
 
@@ -49,15 +55,20 @@ const MainStack = () => {
     <Stack.Navigator initialRouteName="user-dashboard">
       <Stack.Screen name="create-another-group" component={CreateAnotherGroup} options={{ header: () => <Header title="Create Another Group" showBack={false} /> }} />
       <Stack.Screen name="group-information" component={GroupInformation} options={{ header: () => <Header title="Group Information" showBack={false} /> }} />
+      <Stack.Screen name="manage-group-information" component={ManageGroupInformation} options={{ header: () => <Header title="Manage Group Information" showBack={false} /> }} />
       <Stack.Screen name="manage-edit-group-information" component={ManageEditGroupInformation} options={{ header: () => <Header title="Manage Edit Group Information" showBack={false} /> }} />
       
       <Stack.Screen name="settings" component={Settings} options={{ header: () => <Header title="Settings" showBack={false} /> }} />
       <Stack.Screen name="profile" component={Profile} options={{ header: () => <Header title="My Profile" showBack={false} /> }} />
       <Stack.Screen name="edit-profile" component={EditProfile} options={{ header: () => <Header title="Edit Profile" showBack={false} /> }} />
+      <Stack.Screen name="manage-edit-profile" component={ManageEditProfile} options={{ header: () => <Header title="Manage Edit Profile" showBack={false} /> }} />
       <Stack.Screen name="user-dashboard" component={UserDashboard} options={{ header: () => <Header title="My Dashbord" showBack={false} /> }} />
       <Stack.Screen name="management-dashboard" component={ManagementDashboard} options={{ header: () => <Header title="Management Dashbord" showBack={false} /> }} />
-      <Stack.Screen name="manage-users" component={ManageUsers} options={{ header: () => <Header title="Manage User" showBack={false} /> }} />
+      <Stack.Screen name="manage-users" component={ManageUsers} options={{ header: () => <Header title="Manage Users" showBack={false} /> }} />
+      <Stack.Screen name="manage-profile" component={ManageProfile} options={{ header: () => <Header title="Manage Profile" showBack={false} /> }} />
       
+      <Stack.Screen name="manage-members" component={ManageMembers} options={{ header: () => <Header title="Manage Member" showBack={false} /> }} />
+
       <Stack.Screen name="create-announcement" component={CreateAnnouncement} options={{ header: () => <Header title="Create Announcement" showBack={false} /> }} />
       <Stack.Screen name="announcements" component={Announcements} options={{ header: () => <Header title="Announcements" showBack={false} /> }} />
       <Stack.Screen name="announcement" component={Announcement} options={{ header: () => <Header title="Announcement" showBack={false} /> }} />
@@ -91,6 +102,8 @@ const MainStack = () => {
       <Stack.Screen name="payment" component={Payment} options={{ header: () => <Header title="Payment" showBack={false} /> }} />
 
       <Stack.Screen name="create-expense" component={CreateExpense} options={{ header: () => <Header title="Create Expense" showBack={false} /> }} />
+      <Stack.Screen name="expense" component={Expense} options={{ header: () => <Header title="Expense" showBack={false} /> }} />
+      <Stack.Screen name="expenses" component={Expenses} options={{ header: () => <Header title="Expenses" showBack={false} /> }} />
       <Stack.Screen name="manage-expenses" component={ManageExpenses} options={{ header: () => <Header title="Manage Expenses" showBack={false} /> }} />
       <Stack.Screen name="manage-expense" component={ManageExpense} options={{ header: () => <Header title="Manage Expense" showBack={false} /> }} />
       <Stack.Screen name="manage-edit-expense" component={ManageEditExpense} options={{ header: () => <Header title="Manage Edit Expense" showBack={false} /> }} />

@@ -6,6 +6,8 @@ import {
     Image,
     ActivityIndicator,
     Pressable,
+    TextInput,
+    Modal,
 } from "react-native";
 import moment from "moment";
 import { Switch } from 'react-native';
@@ -29,6 +31,11 @@ const GroupInformation = ({ navigation }) => {
     const [groupNotificationsEnabled, setGroupNotificationsEnabled] = useState(false);
     const [permissions, setPermissions] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showResetPassword, setShowResetPassword] = useState(false);
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [resetLoading, setResetLoading] = useState(false);
+
     const [notification, setNotification] = useState({
         visible: false,
         type: "",
@@ -75,6 +82,48 @@ const GroupInformation = ({ navigation }) => {
         }
     };
 
+    const handleGroupPasswordReset = async () => {
+        if (!newPassword || !confirmPassword) {
+            setNotification({
+                visible: true,
+                type: "error",
+                message: "Both fields are required.",
+            });
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            setNotification({
+                visible: true,
+                type: "error",
+                message: "Passwords do not match.",
+            });
+            return;
+        }
+
+        try {
+            setResetLoading(true);
+            const response = await privateAxios.post("/private/manage-reset-group-password", { groupPassword: newPassword });
+
+            if (response.status === 200) {
+                setNotification({
+                    visible: true,
+                    type: "success",
+                    message: "Password reset successfully.",
+                });
+                setShowResetPassword(false);
+                setNewPassword("");
+                setConfirmPassword("");
+                setTimeout(() => setNotification({ visible: false, type: '', message: '' }), 3000);
+            }
+        } catch (error) {
+            setNotification({ visible: true, type: "error", message: error?.response?.data?.message || "Password reset failed."});
+            setTimeout(() => setNotification({ visible: false, type: '', message: '' }), 3000);
+        } finally {
+            setResetLoading(false);
+        }
+    }
+
     useEffect(() => {
         const loadPermissions = async () => {
             try {
@@ -84,7 +133,7 @@ const GroupInformation = ({ navigation }) => {
                     setPermissions(decoded.permissions || []);
                 }
             } catch (err) {
-                if (__Dev__) console.error("Failed to load permissions:", err);
+                if (__DEV__) console.error("Failed to load permissions:", err);
             }
         };
 
@@ -116,7 +165,7 @@ const GroupInformation = ({ navigation }) => {
                     });
                 }
             } catch (error) {
-                if (__Dev__) console.error("Group Info Fetch Error:", error);
+                if (__DEV__) console.error("Group Info Fetch Error:", error);
                 setNotification({
                     visible: true,
                     type: "error",
@@ -196,7 +245,7 @@ const GroupInformation = ({ navigation }) => {
                     {permissions && (permissions.includes('admin') || permissions.includes('user')) && <Text style={{ color: colors.text }}>🔑 Join Code:{" "}{loading ? <ActivityIndicator /> : <Text style={{ fontWeight: "bold" }}>{group.joinCode}</Text>}</Text>}
 
                     <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 6 }}>
-                        <Text style={{ color: colors.text }}>📌 Statuses:</Text>
+                        <Text style={{ color: colors.text }}>📌 Status:</Text>
                         <View>
                             {loading ? <ActivityIndicator size="small" color={colors.primary} /> : <Text style={{ fontWeight: "bold", color: group.status === "active" ? "green" : "red", textTransform: 'capitalize' }}> {group.status}</Text>}
                         </View>
@@ -281,6 +330,7 @@ const GroupInformation = ({ navigation }) => {
                 )}
 
                 {permissions && (permissions.includes('admin') || permissions.includes('manage_group')) && (
+
                     <Pressable
                         style={{
                             backgroundColor: colors.primary,
@@ -302,8 +352,160 @@ const GroupInformation = ({ navigation }) => {
                             📩 Edit Group Information
                         </Text>
                     </Pressable>
-
                 )}
+
+                {/* Reset group password button */}
+                {permissions && (permissions.includes('admin') || permissions.includes('manage_group')) && (
+                    <View>
+                        <Pressable
+                            style={[
+                                stylesConfig.BUTTON,
+                                { backgroundColor: colors.primary, marginTop: 20 },
+                            ]}
+                            onPress={() => setShowResetPassword(true)}
+                        >
+                            <Text style={{ color: colors.mainButtonText, fontWeight: "700", fontSize: 16 }}>
+                                🔑 Reset Group Password
+                            </Text>
+                        </Pressable>
+                    </View>
+                )}
+
+                {/* Reset Password Modal */}
+                <Modal
+                    animationType="slide"
+                    transparent={true}
+                    visible={showResetPassword}
+                    onRequestClose={() => setShowResetPassword(false)}
+                >
+                    <View style={[stylesConfig.MODAL_OVERLAY, { backgroundColor: "rgba(0,0,0,0.6)" }]}>
+                        <View
+                            style={[
+                                stylesConfig.CARD,
+                                {
+                                    padding: 20,
+                                    width: "85%",
+                                    backgroundColor: colors.secondary, // use secondary for a subtle card background
+                                    borderColor: colors.border,       // keep border consistent
+                                    borderWidth: 1,
+                                    borderRadius: 12,
+                                    flexDirection: "column",
+                                    shadowColor: "#000",
+                                    shadowOpacity: 0.1,
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowRadius: 6,
+                                    elevation: 5, // for Android shadow
+                                },
+                            ]}
+                        >
+                            <Text
+                                style={{
+                                    fontSize: 18,
+                                    fontWeight: "bold",
+                                    marginBottom: 15,
+                                    color: colors.text,
+                                    textAlign: "center",
+                                }}
+                            >
+                                Reset Group Password
+                            </Text>
+
+                            <TextInput
+                                placeholder="Enter new password"
+                                secureTextEntry
+                                value={newPassword}
+                                onChangeText={setNewPassword}
+                                style={[
+                                    stylesConfig.INPUT,
+                                    {
+                                        backgroundColor: colors.inputBackground,
+                                        borderColor: colors.border,
+                                        color: colors.text,
+                                        marginBottom: 12,
+                                        paddingHorizontal: 12,
+                                        borderRadius: 8,
+                                    },
+                                ]}
+                                placeholderTextColor={colors.placeholder}
+                            />
+
+                            <TextInput
+                                placeholder="Confirm new password"
+                                secureTextEntry
+                                value={confirmPassword}
+                                onChangeText={setConfirmPassword}
+                                style={[
+                                    stylesConfig.INPUT,
+                                    {
+                                        backgroundColor: colors.inputBackground,
+                                        borderColor: colors.border,
+                                        color: colors.text,
+                                        marginBottom: 20,
+                                        paddingHorizontal: 12,
+                                        borderRadius: 8,
+                                    },
+                                ]}
+                                placeholderTextColor={colors.placeholder}
+                            />
+
+                            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                                {/* Cancel */}
+                                <Pressable
+                                    style={[
+                                        stylesConfig.BUTTON,
+                                        {
+                                            backgroundColor: colors.border,
+                                            flex: 1,
+                                            marginRight: 8,
+                                            paddingVertical: 12,
+                                            borderRadius: 8,
+                                        },
+                                    ]}
+                                    onPress={() => {
+                                        setShowResetPassword(false);
+                                        setNewPassword("");
+                                        setConfirmPassword("");
+                                    }}
+                                >
+                                    <Text style={{ color: colors.text, fontWeight: "600", textAlign: "center" }}>
+                                        Cancel
+                                    </Text>
+                                </Pressable>
+
+                                {/* Submit */}
+                                <Pressable
+                                    style={[
+                                        stylesConfig.BUTTON,
+                                        {
+                                            backgroundColor: colors.primary,
+                                            flex: 1,
+                                            paddingVertical: 12,
+                                            borderRadius: 8,
+                                        },
+                                    ]}
+                                    disabled={resetLoading}
+                                    onPress={handleGroupPasswordReset}
+                                >
+                                    {resetLoading ? (
+                                        <ActivityIndicator color={colors.mainButtonText} />
+                                    ) : (
+                                        <Text
+                                            style={{
+                                                color: colors.mainButtonText,
+                                                fontWeight: "700",
+                                                textAlign: "center",
+                                            }}
+                                        >
+                                            Reset
+                                        </Text>
+                                    )}
+                                </Pressable>
+                            </View>
+                        </View>
+
+                    </View>
+                </Modal>
+
             </ScrollView>
 
             <Footer />

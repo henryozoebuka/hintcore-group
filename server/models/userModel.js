@@ -33,12 +33,12 @@ const userSchema = new mongoose.Schema({
         required: true,
         unique: true,
         lowercase: true,
-        trim: true
+        trim: true,
     },
 
     bio: {
         type: String,
-        default: ''
+        default: '',
     },
 
     phoneNumber: {
@@ -68,6 +68,11 @@ const userSchema = new mongoose.Schema({
         default: false
     },
 
+    userRole: {
+        type: String,
+        default: 'user',
+    },
+
     groups: {
         type: [userGroupSchema],
         default: []
@@ -91,7 +96,7 @@ const userSchema = new mongoose.Schema({
 
     globalNotificationsEnabled: {
         type: Boolean,
-        default: false,
+        default: true,
     },
 
     deviceTokens: {

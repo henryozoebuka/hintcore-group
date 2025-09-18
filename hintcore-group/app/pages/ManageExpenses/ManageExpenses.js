@@ -28,9 +28,10 @@ const ManageExpenses = ({ navigation }) => {
     const [selectedExpenses, setSelectedExpenses] = useState([]);
     const [searchOptions, setSearchOptions] = useState(false);
     const [searchMode, setSearchMode] = useState(false);
-    const [searchParams, setSearchParams] = useState({ titleOrDescription: "", published: "", startDate: "", endDate: "" });
+    const [searchParams, setSearchParams] = useState({ titleOrDescription: "", minAmount: "", maxAmount: "", published: "", startDate: "", endDate: "" });
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+        const [initialLoaded, setInitialLoaded] = useState(false);
     const [loading, setLoading] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
     const [notification, setNotification] = useState({ visible: false, type: "", message: "" });
@@ -39,6 +40,7 @@ const ManageExpenses = ({ navigation }) => {
         try {
             setLoading(true);
             const response = await privateAxios.get(`/private/manage-expenses?page=${pageNumber}`);
+            setInitialLoaded(true);
             setExpenses(response.data.expenses || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
@@ -56,10 +58,19 @@ const ManageExpenses = ({ navigation }) => {
         try {
             setLoading(true);
 
-            const query = new URLSearchParams({
+            const sanitizedParams = {
                 ...searchParams,
-                page: pageNumber,
-            });
+                minAmount: searchParams.minAmount.replace(/,/g, ''),
+                maxAmount: searchParams.maxAmount.replace(/,/g, ''),
+                page: pageNumber
+            };
+
+            // Remove empty keys
+            Object.keys(sanitizedParams).forEach(
+                key => (sanitizedParams[key] === "" || sanitizedParams[key] == null) && delete sanitizedParams[key]
+            );
+
+            const query = new URLSearchParams(sanitizedParams).toString();
 
             const response = await privateAxios.get(`/private/manage-search-expenses?${query}`);
             setExpenses(response.data.expenses || []);
@@ -180,6 +191,12 @@ const ManageExpenses = ({ navigation }) => {
         return title.length > 25 ? title.slice(0, 25) + "..." : title;
     };
 
+    const formatWithCommas = (value) => {
+        const numericValue = value.replace(/,/g, ''); // remove existing commas
+        if (!numericValue) return '';
+        return parseFloat(numericValue).toLocaleString('en-US');
+    };
+
     useEffect(() => {
         fetchExpenses(1);
     }, []);
@@ -201,7 +218,7 @@ const ManageExpenses = ({ navigation }) => {
                 </Pressable>
 
                 {/* Filter Expenses */}
-                {expenses.length > 0 &&
+                {initialLoaded &&
                     <Pressable
                         style={[stylesConfig.BUTTON, { backgroundColor: colors.primary }]}
                         onPress={() => setSearchOptions(!searchOptions)}
@@ -232,6 +249,38 @@ const ManageExpenses = ({ navigation }) => {
                                 })
                             }
                         />
+
+                        {/* Amount Range */}
+                        <View style={{ flexDirection: "row", marginTop: 10, columnGap: 10 }}>
+                            <TextInput
+                                style={[
+                                    stylesConfig.INPUT,
+                                    { flex: 1, backgroundColor: colors.inputBackground, color: colors.text },
+                                ]}
+                                placeholder="Min Amount"
+                                placeholderTextColor={colors.placeholder}
+                                keyboardType="numeric"
+                                value={searchParams.minAmount}
+                                onChangeText={(text) => {
+                                    const formatted = formatWithCommas(text);
+                                    setSearchParams((prev) => ({ ...prev, minAmount: formatted }));
+                                }}
+                            />
+                            <TextInput
+                                style={[
+                                    stylesConfig.INPUT,
+                                    { flex: 1, backgroundColor: colors.inputBackground, color: colors.text },
+                                ]}
+                                placeholder="Max Amount"
+                                placeholderTextColor={colors.placeholder}
+                                keyboardType="numeric"
+                                value={searchParams.maxAmount}
+                                onChangeText={(text) => {
+                                    const formatted = formatWithCommas(text);
+                                    setSearchParams((prev) => ({ ...prev, maxAmount: formatted }));
+                                }}
+                            />
+                        </View>
 
                         {/* Published Status */}
                         <View style={{ marginTop: 10 }}>
@@ -354,7 +403,7 @@ const ManageExpenses = ({ navigation }) => {
                         <Pressable
                             style={[stylesConfig.BUTTON, { backgroundColor: loading ? colors.border : colors.primary, marginTop: 10, flexDirection: 'row', columnGap: 10, justifyContent: 'center' }]}
                             disabled={loading || actionLoading}
-                            onPress={() => {handleSearch(); setSearchOptions(false); }}
+                            onPress={() => { handleSearch(); setSearchOptions(false); }}
                         >
                             <Text style={{ color: colors.mainButtonText }}>{loading ? 'Searching...' : 'Search'}</Text>
                         </Pressable>

@@ -12,7 +12,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.hintcore.group",
       "googleServicesFile": "./firebase/GoogleService-Info.plist",
-      "useFrameworks": "static",
       "infoPlist": {
         "NSUserTrackingUsageDescription": "This identifier will be used to deliver personalized notifications.",
         "UIBackgroundModes": [

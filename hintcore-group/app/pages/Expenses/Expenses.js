@@ -6,7 +6,6 @@ import {
     Pressable,
     FlatList,
     ActivityIndicator,
-    Alert,
     SafeAreaView,
 } from "react-native";
 import moment from "moment";
@@ -15,52 +14,63 @@ import privateAxios from "../../utils/axios/privateAxios";
 import stylesConfig from "../../styles/styles";
 import Notification from "../../components/Notification/Notification";
 import Footer from "../../components/Footer/Footer";
-import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from "@react-native-community/datetimepicker";
 
-const ManageAnnouncements = ({ navigation }) => {
+const Expenses = ({ navigation }) => {
     const { colors } = useSelector((state) => state.colors);
     const [showDatePicker, setShowDatePicker] = useState(false);
-    const [datePickerMode, setDatePickerMode] = useState(false);
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
-    const [announcements, setAnnouncements] = useState([]);
-    const [selectedAnnouncements, setSelectedAnnouncements] = useState([]);
+    const [datePickerMode, setDatePickerMode] = useState(null); // "start" or "end"
+    const [expenses, setExpenses] = useState([]);
     const [searchOptions, setSearchOptions] = useState(false);
     const [searchMode, setSearchMode] = useState(false);
-    const [searchParams, setSearchParams] = useState({ titleOrDescription: "", startDate: "", endDate: "", published: "" });
+    const [searchParams, setSearchParams] = useState({ titleOrDescription: "", minAmount: "", maxAmount: "", startDate: "", endDate: "" });
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [initialLoaded, setInitialLoaded] = useState(false);
     const [loading, setLoading] = useState(false);
     const [notification, setNotification] = useState({ visible: false, type: "", message: "" });
 
-    const fetchAnnouncements = async (pageNumber = 1) => {
+    const fetchExpenses = async (pageNumber = 1) => {
         try {
             setLoading(true);
-            const response = await privateAxios.get(`/private/manage-announcements?page=${pageNumber}`);
+            const response = await privateAxios.get(`/private/expenses?page=${pageNumber}`);
             setInitialLoaded(true);
-            setAnnouncements(response.data.announcements || []);
+            let list = response.data.expenses || [];
+
+            setExpenses(list);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
         } catch (error) {
-            showError("Failed to fetch announcements.");
+            showError(error?.response?.data?.message || "Failed to fetch expenses.");
+            if (__DEV__) console.error(error);
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchSearchedAnnouncements = async (pageNumber = 1) => {
+    const fetchSearchedExpenses = async (pageNumber = 1) => {
         try {
             setLoading(true);
-
-            const query = new URLSearchParams({
+            const sanitizedParams = {
                 ...searchParams,
-                page: pageNumber,
-            });
+                minAmount: searchParams.minAmount.replace(/,/g, ''),
+                maxAmount: searchParams.maxAmount.replace(/,/g, ''),
+                page: pageNumber
+            };
 
-            const response = await privateAxios.get(`/private/manage-search-announcements?${query}`);
-            setAnnouncements(response.data.announcements || []);
+            // Remove empty keys
+            Object.keys(sanitizedParams).forEach(
+                key => (sanitizedParams[key] === "" || sanitizedParams[key] == null) && delete sanitizedParams[key]
+            );
+
+            const query = new URLSearchParams(sanitizedParams).toString();
+
+            const response = await privateAxios.get(`/private/search-expenses?${query}`);
+            let list = response.data.expenses || [];
+
+            setExpenses(list);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
         } catch (error) {
@@ -86,51 +96,7 @@ const ManageAnnouncements = ({ navigation }) => {
 
     const handleSearch = () => {
         setSearchMode(true);
-        fetchSearchedAnnouncements(1);
-    };
-
-    const handleCheckbox = (id) => {
-        setSelectedAnnouncements((prev) =>
-            prev.includes(id) ? prev.filter((aId) => aId !== id) : [...prev, id]
-        );
-    };
-
-    const confirmDeleteSelected = () => {
-        if (!selectedAnnouncements.length) return;
-        Alert.alert("Delete", `Delete ${selectedAnnouncements.length} selected announcement(s)?`, [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Delete",
-                style: "destructive",
-                onPress: async () => {
-                    try {
-                        await privateAxios.post("/private/delete-announcements", { ids: selectedAnnouncements });
-                        setSelectedAnnouncements([]);
-                        searchMode ? fetchSearchedAnnouncements(currentPage) : fetchAnnouncements(currentPage);
-                    } catch {
-                        showError("Failed to delete announcements.");
-                    }
-                },
-            },
-        ]);
-    };
-
-    const confirmDeleteSingle = (id) => {
-        Alert.alert("Delete", "Delete this announcement?", [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Delete",
-                style: "destructive",
-                onPress: async () => {
-                    try {
-                        await privateAxios.delete(`/private/delete-announcement/${id}`);
-                        searchMode ? fetchSearchedAnnouncements(currentPage) : fetchAnnouncements(currentPage);
-                    } catch {
-                        showError("Failed to delete announcement.");
-                    }
-                },
-            },
-        ]);
+        fetchSearchedExpenses(1);
     };
 
     const showError = (msg) => {
@@ -141,42 +107,37 @@ const ManageAnnouncements = ({ navigation }) => {
     const handleNextPage = () => {
         if (currentPage < totalPages) {
             const nextPage = currentPage + 1;
-            searchMode ? fetchSearchedAnnouncements(nextPage) : fetchAnnouncements(nextPage);
+            searchMode ? fetchSearchedExpenses(nextPage) : fetchExpenses(nextPage);
         }
     };
 
     const handlePreviousPage = () => {
         if (currentPage > 1) {
             const prevPage = currentPage - 1;
-            searchMode ? fetchSearchedAnnouncements(prevPage) : fetchAnnouncements(prevPage);
+            searchMode ? fetchSearchedExpenses(prevPage) : fetchExpenses(prevPage);
         }
     };
 
-    useEffect(() => {
-        fetchAnnouncements(1);
-    }, []);
-
-    // Truncate title if it exceeds 20 characters
     const truncateTitle = (title) => {
         return title.length > 25 ? title.slice(0, 25) + "..." : title;
     };
+
+    const formatWithCommas = (value) => {
+        const numericValue = value.replace(/,/g, ''); // remove existing commas
+        if (!numericValue) return '';
+        return parseFloat(numericValue).toLocaleString('en-US');
+    };
+
+    useEffect(() => {
+        fetchExpenses(1);
+    }, []);
 
     return (
         <SafeAreaView style={{ flex: 1 }}>
             <View style={[stylesConfig.SETTINGS_STYLES.container, { backgroundColor: colors.background }]}>
                 <Notification visible={notification.visible} type={notification.type} message={notification.message} />
 
-                <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text }]}>
-                    Manage Announcements
-                </Text>
-
-                {/* Create Announcement Button */}
-                <Pressable
-                    style={[stylesConfig.BUTTON, { backgroundColor: colors.primary }]}
-                    onPress={() => navigation.navigate("create-announcement")}
-                >
-                    <Text style={{ color: colors.mainButtonText }}>Create Announcement</Text>
-                </Pressable>
+                <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text }]}>Expenses</Text>
 
                 {/* Search Options */}
                 {initialLoaded &&
@@ -185,67 +146,56 @@ const ManageAnnouncements = ({ navigation }) => {
                         onPress={() => setSearchOptions(!searchOptions)}
                     >
                         <Text style={{ color: colors.mainButtonText }}>
-                            {searchOptions ? "Hide Search Options" : "Filter Announcements"}
+                            {searchOptions ? "Hide Search Options" : "Filter Expense"}
                         </Text>
                     </Pressable>}
 
                 {searchOptions && (
                     <View style={{ marginVertical: 10 }}>
-                        {/* Title or description Input */}
+                        {/* Title Input */}
                         <TextInput
                             style={[
                                 stylesConfig.INPUT,
-                                {
-                                    backgroundColor: colors.inputBackground,
-                                    color: colors.text,
-                                },
+                                { backgroundColor: colors.inputBackground, color: colors.text },
                             ]}
                             placeholder="Title or description"
                             placeholderTextColor={colors.placeholder}
                             value={searchParams.titleOrDescription}
                             onChangeText={(text) =>
-                                setSearchParams({
-                                    ...searchParams,
-                                    titleOrDescription: text,
-                                })
+                                setSearchParams({ ...searchParams, titleOrDescription: text })
                             }
                         />
 
-                        {/* Published Status */}
-                        <View style={{ marginTop: 10 }}>
-                            <Text style={{ color: colors.text, fontWeight: "bold", marginBottom: 5 }}>
-                                Published Status
-                            </Text>
-                            {["", "true", "false"].map((val) => (
-                                <Pressable
-                                    key={val}
-                                    onPress={() =>
-                                        setSearchParams((prev) => ({ ...prev, published: val }))
-                                    }
-                                    style={{ flexDirection: "row", alignItems: "center", marginBottom: 5 }}
-                                >
-                                    <View
-                                        style={{
-                                            width: 20,
-                                            height: 20,
-                                            borderWidth: 1,
-                                            borderColor: colors.border,
-                                            borderRadius: 5,
-                                            backgroundColor: searchParams.published === val
-                                                ? colors.primary
-                                                : "transparent",
-                                            marginRight: 5,
-                                        }}
-                                    />
-                                    <Text style={{ color: colors.text }}>
-                                        {val === ""
-                                            ? "All"
-                                            : val === "true"
-                                                ? "Published"
-                                                : "Unpublished"}
-                                    </Text>
-                                </Pressable>
-                            ))}
+                        {/* Amount Range */}
+                        <View style={{ flexDirection: "row", marginTop: 10, columnGap: 10 }}>
+                            <TextInput
+                                style={[
+                                    stylesConfig.INPUT,
+                                    { flex: 1, backgroundColor: colors.inputBackground, color: colors.text },
+                                ]}
+                                placeholder="Min Amount"
+                                placeholderTextColor={colors.placeholder}
+                                keyboardType="numeric"
+                                value={searchParams.minAmount}
+                                onChangeText={(text) => {
+                                    const formatted = formatWithCommas(text);
+                                    setSearchParams((prev) => ({ ...prev, minAmount: formatted }));
+                                }}
+                            />
+                            <TextInput
+                                style={[
+                                    stylesConfig.INPUT,
+                                    { flex: 1, backgroundColor: colors.inputBackground, color: colors.text },
+                                ]}
+                                placeholder="Max Amount"
+                                placeholderTextColor={colors.placeholder}
+                                keyboardType="numeric"
+                                value={searchParams.maxAmount}
+                                onChangeText={(text) => {
+                                    const formatted = formatWithCommas(text);
+                                    setSearchParams((prev) => ({ ...prev, maxAmount: formatted }));
+                                }}
+                            />
                         </View>
 
                         {/* DateTimePicker Component */}
@@ -328,91 +278,67 @@ const ManageAnnouncements = ({ navigation }) => {
 
                         </View>
 
-                        {/* 🔍 Search Button */}
+                        {/* Search Btn */}
                         <Pressable
-                            style={[stylesConfig.BUTTON, { backgroundColor: loading ? colors.border : colors.primary, marginTop: 10, flexDirection: 'row', columnGap: 10, justifyContent: 'center' }]}
-                            onPress={() => {handleSearch(); setSearchOptions(false);}}
+                            style={[
+                                stylesConfig.BUTTON,
+                                {
+                                    backgroundColor: loading ? colors.border : colors.primary,
+                                    marginTop: 10,
+                                    flexDirection: "row",
+                                    columnGap: 10,
+                                    justifyContent: "center",
+                                },
+                            ]}
                             disabled={loading}
+                            onPress={() => { handleSearch(); setSearchOptions(false) }}
                         >
-                            <Text style={{ color: colors.mainButtonText }}>{loading ? 'Searching...' : 'Search'}</Text>
+                            <Text style={{ color: colors.mainButtonText }}>
+                                {loading ? "Searching..." : "Search"}
+                            </Text>
                         </Pressable>
                     </View>
                 )}
 
-                {/* Delete Selected Button */}
-                {announcements.length > 0 && <Pressable
-                    style={[
-                        stylesConfig.BUTTON,
-                        { backgroundColor: selectedAnnouncements.length ? "#dc3545" : colors.border },
-                    ]}
-                    onPress={confirmDeleteSelected}
-                    disabled={!selectedAnnouncements.length}
-                >
-                    <Text style={{ color: "#fff" }}>Delete Selected</Text>
-                </Pressable>}
-
                 {/* List */}
                 {loading ? (
-                    <View style={{ backgroundColor: colors.background, flex: 1, alignItems: 'center', justifyContent: 'center', }}>
+                    <View style={{ backgroundColor: colors.background, flex: 1, alignItems: "center", justifyContent: "center" }}>
                         <ActivityIndicator size="large" color={colors.primary} />
-                        <Text style={{ color: colors.text, marginTop: 10 }}>Loading Announcements...</Text>
+                        <Text style={{ color: colors.text, marginTop: 10 }}>Loading Expenses...</Text>
                     </View>
-                ) : announcements.length > 0 ? (
+                ) : expenses.length > 0 ? (
                     <FlatList
-                        data={announcements}
+                        data={expenses}
                         keyExtractor={(item) => item._id}
                         renderItem={({ item }) => (
                             <Pressable
-                                style={[stylesConfig.CARD, { borderColor: colors.border, backgroundColor: colors.secondary }]}
-                                onPress={() => navigation.navigate("manage-announcement", { id: item._id })}
+                                style={[
+                                    stylesConfig.CARD,
+                                    { borderColor: colors.border, backgroundColor: colors.secondary },
+                                ]}
+                                onPress={() => navigation.navigate("expense", { id: item._id })}
                             >
-                                {/* Checkbox */}
-                                <Pressable
-                                    onPress={() => handleCheckbox(item._id)}
-                                    style={[
-                                        stylesConfig.CHECKBOX,
-                                        {
-                                            backgroundColor: selectedAnnouncements.includes(item._id)
-                                                ? colors.primary
-                                                : colors.background,
-                                        },
-                                    ]}
-                                />
-
-                                <View style={{ flex: 1 }}>
-                                    <Text style={{ color: colors.text, fontWeight: "bold" }}>{truncateTitle(item.title)}</Text>
-                                    <Text style={{ color: colors.text, textAlign: 'right' }}>{moment(item.createdAt).format('MMMM DD, YYYY')}</Text>
-
-                                    {/* Unpublished Tag */}
-                                    {!item.published && (
-                                        <Text style={{ color: "#dc3545", fontSize: 12, marginTop: 5 }}>Unpublished</Text>
-                                    )}
-                                </View>
-
-                                {/* Actions: Edit/Delete */}
-                                <View style={{ flexDirection: "row" }}>
-                                    <Pressable
-                                        style={[stylesConfig.SMALL_BUTTON]}
-                                        onPress={() => navigation.navigate("manage-edit-announcement", { id: item._id })}
-                                    >
-                                        <Ionicons name="create-outline" size={24} color="#007bff" />
-                                    </Pressable>
-                                    <Pressable
-                                        style={[stylesConfig.SMALL_BUTTON]}
-                                        onPress={() => confirmDeleteSingle(item._id)}
-                                    >
-                                        <Ionicons name="trash-outline" size={24} color="red" />
-                                    </Pressable>
+                                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: colors.text, fontWeight: "bold" }}>
+                                            {truncateTitle(item.title)}
+                                        </Text>
+                                        <Text style={{ color: colors.text, textAlign: "right" }}>
+                                            {moment(item.createdAt).format("MMMM DD, YYYY")}
+                                        </Text>
+                                    </View>
                                 </View>
                             </Pressable>
                         )}
-                    />) :
-                    <View style={{ backgroundColor: colors.background, flex: 1, alignItems: 'center', justifyContent: 'center', }}>
-                        <Text style={{ color: colors.text, marginTop: 10 }}>There are no announcements to display.</Text>
+                    />
+                ) : (
+                    <View style={{ backgroundColor: colors.background, flex: 1, alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ color: colors.text, marginTop: 10 }}>There are no expenses to display.</Text>
                     </View>
-                }
+                )}
+
                 {/* Pagination */}
-                {totalPages > 1 &&
+                {totalPages > 1 && (
                     <View style={stylesConfig.PAGINATION}>
                         <Pressable
                             style={[
@@ -430,7 +356,12 @@ const ManageAnnouncements = ({ navigation }) => {
                         <Pressable
                             style={[
                                 stylesConfig.PAGE_BUTTON,
-                                { backgroundColor: currentPage === totalPages ? colors.border : colors.primary, minWidth: 85, alignItems: 'center' },
+                                {
+                                    backgroundColor:
+                                        currentPage === totalPages ? colors.border : colors.primary,
+                                    minWidth: 85,
+                                    alignItems: "center",
+                                },
                             ]}
                             onPress={handleNextPage}
                             disabled={currentPage === totalPages}
@@ -438,11 +369,11 @@ const ManageAnnouncements = ({ navigation }) => {
                             <Text style={{ color: colors.mainButtonText }}>Next</Text>
                         </Pressable>
                     </View>
-                }
+                )}
             </View>
             <Footer />
         </SafeAreaView>
     );
 };
 
-export default ManageAnnouncements;
+export default Expenses;

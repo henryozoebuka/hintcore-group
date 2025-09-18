@@ -134,9 +134,9 @@ export const managePayments = async (req, res) => {
   }
 };
 
-export const manageSearchPayments = async (req, res) => {
+export const searchPayments = async (req, res) => {
   try {
-    const { titleOrDescription, types, published, startDate, endDate, page = 1, limit = 10 } = req.query;
+    const { titleOrDescription, types, minAmount, maxAmount, startDate, endDate, page = 1, limit = 10 } = req.query;
     const { currentGroupId } = req.user;
 
     if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
@@ -149,7 +149,7 @@ export const manageSearchPayments = async (req, res) => {
     }
 
     // 🟢 Build query
-    let query = { group: currentGroupId };
+    let query = { group: currentGroupId, published: true };
 
     // Title or Content search
     if (titleOrDescription) {
@@ -167,6 +167,13 @@ export const manageSearchPayments = async (req, res) => {
       }
     }
 
+    if (minAmount || maxAmount) {
+      const amountFilter = {};
+      if (minAmount) amountFilter.$gte = parseFloat(minAmount);
+      if (maxAmount) amountFilter.$lte = parseFloat(maxAmount);
+      query.amount = amountFilter;
+    }
+
     // 🟢 Date Range
     if (startDate || endDate) {
       query.createdAt = {};
@@ -176,15 +183,6 @@ export const manageSearchPayments = async (req, res) => {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
         query.createdAt.$lte = end;
-      }
-    }
-
-    // 🟢 Published filter
-    if (published !== undefined) {
-      if (published === 'true' || published === 'false') {
-        query.published = published === 'true';
-      } else {
-        return res.status(400).json({ message: "`published` must be 'true' or 'false'." });
       }
     }
 
@@ -199,6 +197,84 @@ export const manageSearchPayments = async (req, res) => {
     return res.status(200).json({
       payments,
       totalPages: Math.ceil(total / limit),
+      currentPage: Number(page),
+    });
+  } catch (error) {
+    console.error("Search Payments Error:", error);
+    return res.status(500).json({ message: "An error occurred while searching payments." });
+  }
+};
+
+export const manageSearchPayments = async (req, res) => {
+  try {
+    const { 
+      titleOrDescription, 
+      minAmount, 
+      maxAmount, 
+      types, 
+      published, 
+      startDate, 
+      endDate, 
+      page = 1, 
+      limit = 10 
+    } = req.query;
+
+    const { currentGroupId } = req.user;
+
+    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: "Invalid group ID." });
+    }
+
+    let query = { group: currentGroupId };
+
+    if (titleOrDescription) {
+      query.$or = [
+        { title: { $regex: titleOrDescription.trim(), $options: "i" } },
+        { description: { $regex: titleOrDescription.trim(), $options: "i" } },
+      ];
+    }
+
+    if (minAmount || maxAmount) {
+      const amountFilter = {};
+      if (minAmount) amountFilter.$gte = parseFloat(minAmount);
+      if (maxAmount) amountFilter.$lte = parseFloat(maxAmount);
+      query.amount = amountFilter;
+    }
+
+    if (types) {
+      const typeArray = types.split(",").map((t) => t.trim().toLowerCase());
+      if (typeArray.length > 0) query.type = { $in: typeArray };
+    }
+
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = end;
+      }
+    }
+
+    if (published !== undefined && published !== "") {
+      if (published === "true" || published === "false") {
+        query.published = published === "true";
+      }
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const [payments, total] = await Promise.all([
+      PaymentModel.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit)),
+      PaymentModel.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      payments,
+      totalPages: Math.ceil(total / Number(limit)),
       currentPage: Number(page),
     });
   } catch (error) {

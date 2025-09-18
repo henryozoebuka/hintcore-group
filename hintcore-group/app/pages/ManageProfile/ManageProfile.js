@@ -2,23 +2,48 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Image, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSelector } from 'react-redux';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import privateAxios from '../../utils/axios/privateAxios';
 import Notification from '../../components/Notification/Notification';
 import Footer from '../../components/Footer/Footer';
 import USERIMAGEALT from '../../../assets/images/hintcore-group-logo.png';
 import stylesConfig from '../../styles/styles';
 
-const Profile = () => {
+const ManageProfile = () => {
   const { colors } = useSelector((state) => state.colors);
   const navigation = useNavigation();
 
   const [groupName, setGroupName] = useState('');
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [groupLoading, setGroupLoading] = useState(false);
   const [notification, setNotification] = useState({ visible: false, type: '', message: '' });
   const [profile, setProfile] = useState(null);
   const [showBio, setShowBio] = useState(false);
 
+  const route = useRoute();
+  const { id } = route.params;
+
+  const handleViewUserGroup = async () => {
+    try {
+      setGroupLoading(true);
+      setGroups([]);
+      const response = await privateAxios.get(`/private/manage-get-user-groups/${id}`);
+      if (response.status === 200) {
+        if (response.data.groups.length < 1) {
+          setNotification({ visible: true, type: 'error', message: 'This user does not belong to any group.' });
+          setTimeout(() => {
+            setNotification({ visible: false, type: '', message: '' })
+          }, 3000);
+        }
+        setGroups(response.data.groups);
+      }
+    } catch (error) {
+      if (__DEV__) console.error(error);
+    } finally {
+      setGroupLoading(false);
+    }
+  }
   useEffect(() => {
     const fetchUserInfo = async () => {
       const storedGroupName = await AsyncStorage.getItem('groupName');
@@ -28,23 +53,22 @@ const Profile = () => {
   }, []);
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchManageProfile = async () => {
       try {
-        const response = await privateAxios.get(`/private/profile`);
+        const response = await privateAxios.get(`/private/manage-profile/${id}`);
         setProfile(response.data.user);
       } catch (err) {
-        console.error('Profile fetch error:', err);
-        setNotification({
-          visible: true,
-          type: 'error',
-          message: err?.response?.data?.message || 'Failed to load profile.',
-        });
+        if (__DEV__) console.error('Profile fetch error:', err);
+        setNotification({ visible: true, type: 'error', message: err?.response?.data?.message || 'Failed to load profile.' });
+        setTimeout(() => {
+          setNotification({ visible: false, type: '', message: '' })
+        }, 3000);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProfile();
+    fetchManageProfile();
   }, []);
 
   return (
@@ -72,7 +96,7 @@ const Profile = () => {
           </View>
 
           {/* Profile Details */}
-          <View style={{ paddingHorizontal: 20 }}>
+          <ScrollView style={{ paddingHorizontal: 20 }}>
 
             {/* Gender */}
             <View style={[stylesConfig.CARD, { borderColor: colors.border }]}>
@@ -85,6 +109,14 @@ const Profile = () => {
               <Text style={[stylesConfig.CARD_HEADER, { color: colors.text }]}>✅ Verified: </Text>
               <Text style={{ color: profile.verified ? 'green' : 'red', fontWeight: 'bold' }}>
                 {profile.verified ? 'Yes' : 'No'}
+              </Text>
+            </View>
+
+            {/* Verification */}
+            <View style={[stylesConfig.CARD, { borderColor: colors.border }]}>
+              <Text style={[stylesConfig.CARD_HEADER, { color: colors.text }]}>🧑‍💻 User Role: </Text>
+              <Text style={{ color: profile.verified ? 'green' : 'red', fontWeight: 'bold' }}>
+                {profile.userRole === 'super_admin' ? 'Super Admin' : `${profile.userRole[0].toUpperCase() + profile.userRole.slice(1)}` }
               </Text>
             </View>
 
@@ -109,7 +141,7 @@ const Profile = () => {
                   rowGap: 10,
                 }]}
               >
-                <Text style={[stylesConfig.CARD_HEADER, { color: colors.text }]}>🧾 Bio</Text>
+                <Text style={[stylesConfig.CARD_HEADER, { color: colors.text, fontWeight: 'bold' }]}>🧾 Bio</Text>
                 {showBio ? (
                   <Text style={{ color: colors.text }}>{profile.bio}</Text>
                 ) : (
@@ -120,23 +152,38 @@ const Profile = () => {
               </Pressable>
             ) : null}
 
+            {/* User Groups */}
+            {groups.length > 0 &&
+              <View style={{ padding: 5, borderWidth: 1, borderColor: colors.border, flexDirection: 'column' }}>
+                <Text style={{ color: colors.text, fontWeight: 'bold', marginBottom: 10 }}>User Groups</Text>
+                <View>
+                  {groups.map((item, index) => (
+                    <Pressable style={{ backgroundColor: colors.secondary, borderRadius: 10, marginBottom: 10, paddingVertical: 5, paddingHorizontal: 10 }} key={index} onPress={() => navigation.navigate('manage-group-information', { id: item._id })}>
+                      <Text style={{ color: colors.text }}>{item.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            }
+          </ScrollView>
 
-          </View>
 
           {/* Action Buttons */}
           <View style={{ paddingHorizontal: 20, marginTop: 30 }}>
             <Pressable
-              onPress={() => navigation.navigate('edit-profile')}
+              onPress={() => navigation.navigate('manage-edit-profile', {id})}
               style={[stylesConfig.BUTTON, { backgroundColor: colors.primary, marginBottom: 10 }]}
             >
-              <Text style={{ color: colors.mainButtonText, fontWeight: 'bold' }}>✏️ Edit Profile</Text>
+              <Text style={{ color: colors.mainButtonText, fontWeight: 'bold' }}>✏️ Edit User Profile</Text>
             </Pressable>
 
             <Pressable
-              onPress={() => navigation.navigate('user-dashboard')}
-              style={[stylesConfig.BUTTON, { backgroundColor: colors.secondary }]}
+              onPress={handleViewUserGroup}
+              style={[stylesConfig.BUTTON, { backgroundColor: groupLoading ? colors.border : colors.secondary, flexDirection: 'row', columnGap: 10, justifyContent: 'center', alignItems: 'center' }]}
+              disabled={groupLoading || loading}
             >
-              <Text style={{ color: colors.text }}>📊 User Dashboard</Text>
+              {groupLoading && <ActivityIndicator size="small" color={colors.primary} />}
+              <Text style={{ color: colors.text }}>{groupLoading ? 'Fetching User Groups...' : '👨‍👩‍👧‍👦 View User Group'}</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -146,4 +193,4 @@ const Profile = () => {
   );
 }
 
-export default Profile;
+export default ManageProfile;

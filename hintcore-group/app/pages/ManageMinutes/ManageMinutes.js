@@ -20,6 +20,7 @@ const ManageMinutes = ({ route, navigation }) => {
 
     const [minutes, setMinutes] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [deleteLoading, setDeleteLoading] = useState(false);
     const [notification, setNotification] = useState({
         visible: false,
         type: '',
@@ -56,15 +57,16 @@ const ManageMinutes = ({ route, navigation }) => {
 
     const confirmDeleteAction = async () => {
         try {
-            await privateAxios.delete(`/private/delete-minutes/${id}`);
+            setDeleteLoading(true);
+            const response = await privateAxios.delete(`/private/delete-minutes/${id}`);
             setNotification({
                 visible: true,
                 type: 'success',
-                message: 'Minutes record deleted successfully.',
+                message: response.data.message || 'Minutes record deleted successfully.',
             });
             setTimeout(() => {
                 setNotification({ visible: false, type: '', message: '' });
-                navigation.navigate('manage-minutes');
+                navigation.navigate('manage-minutes-records');
             }, 3000);
         } catch (error) {
             setNotification({
@@ -73,10 +75,10 @@ const ManageMinutes = ({ route, navigation }) => {
                 message: 'Failed to delete minutes record.',
             });
         } finally {
+            setDeleteLoading(false);
             setConfirmDelete(false);
         }
     };
-
     const handleCancelDelete = () => {
         setConfirmDelete(false);
     };
@@ -140,7 +142,7 @@ const ManageMinutes = ({ route, navigation }) => {
                     <ConfirmDialog
                         visible={confirmDelete}
                         title="Delete Minutes Record"
-                        message="Are you sure you want to delete this minutes record?"
+                        message={deleteLoading ? `Deleting ${minutes.title[0].toUpperCase() + minutes.title.slice(1)}` : `Are you sure you want to delete ${minutes.title[0].toUpperCase() + minutes.title.slice(1)}?`}
                         onConfirm={confirmDeleteAction}
                         onCancel={handleCancelDelete}
                     />

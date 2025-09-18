@@ -11,6 +11,7 @@ import AnnouncementModel from "../models/announcementModel.js";
 
 dotenv.config();
 
+const permissions = ['admin', 'user', 'manage_members', 'manage_announcements', 'manage_constitutions', 'manage_expenses', 'manage_payments', 'expenses']
 const MAX_ATTEMPTS = 5;
 const COOLDOWN_MINUTES = 60;
 
@@ -235,7 +236,8 @@ export const login = async (req, res) => {
       {
         userId: user._id,
         currentGroupId: currentGroup._id,
-        permissions: userPermissions
+        permissions: userPermissions,
+        userRole: user.userRole,
       },
       process.env.JWT_PASSWORD,
       { expiresIn: '1d' }
@@ -333,7 +335,7 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-export const userProfile = async (req, res) => {
+export const profile = async (req, res) => {
   try {
     const { userId } = req.user;
 
@@ -362,7 +364,37 @@ export const userProfile = async (req, res) => {
   }
 };
 
-export const userProfileEdit = async (req, res) => {
+export const manageProfile = async (req, res) => {
+  try {
+
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+
+    // 2️⃣ Fetch user and populate groups
+    const user = await UserModel.findById(id)
+      .populate({
+        path: 'groups.group',
+        select: 'name description imageUrl', // Group fields to show
+      })
+      .select('-password'); // Hide sensitive fields
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // 3️⃣ Return profile
+    res.status(200).json({ user });
+
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+export const fetchEditProfile = async (req, res) => {
   try {
     const { userId } = req.user;
 
@@ -387,7 +419,32 @@ export const userProfileEdit = async (req, res) => {
   }
 };
 
-export const updateUserProfile = async (req, res) => {
+export const manageFetchEditProfile = async (req, res) => {
+  try {
+    const { userId } = req.user;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+
+    // 2️⃣ Fetch user and populate groups
+    const user = await UserModel.findById(userId)
+      .select('-password -OTPNumberOfAttempts -groups'); // Hide sensitive fields
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // 3️⃣ Return profile
+    res.status(200).json({ user });
+
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+export const updateProfile = async (req, res) => {
   const { userId } = req.user;
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -434,6 +491,95 @@ export const updateUserProfile = async (req, res) => {
   } catch (err) {
     console.error('Update profile error:', err);
     return res.status(500).json({ message: 'Server error while updating profile' });
+  }
+};
+
+export const manageUpdateProfile = async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid user ID in token" });
+  }
+
+  try {
+    const {
+      fullName,
+      email,
+      phoneNumber,
+      bio,
+      gender,
+      imageUrl,
+      verified,
+      userRole
+    } = req.body;
+
+    const user = await UserModel.findById(id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // ✅ Check email update only if different
+    if (email && email.toLowerCase() !== user.email.toLowerCase()) {
+      const emailExists = await UserModel.findOne({ email: email.toLowerCase() });
+      if (!emailExists) {
+        user.email = email.toLowerCase();
+      }
+    }
+
+    // ✅ Only update other fields if provided
+    if (fullName !== undefined) user.fullName = fullName;
+    if (phoneNumber !== undefined) user.phoneNumber = phoneNumber;
+    if (bio !== undefined) user.bio = bio;
+    if (gender !== undefined) user.gender = gender;
+    if (imageUrl !== undefined) user.imageUrl = imageUrl;
+    if (verified !== undefined) user.verified = verified;
+    if (userRole !== undefined) user.userRole = userRole;
+
+    await user.save();
+
+    return res.json({ message: 'User profile updated successfully' });
+  } catch (err) {
+    if (err.code === 11000 && err.keyPattern?.email) {
+      return res.status(409).json({ message: 'Email already in use by another account.' });
+    }
+
+    console.error('Update user profile error:', err);
+    return res.status(500).json({ message: 'Server error while updating user profile' });
+  }
+};
+
+export const manageUsers = async (req, res) => {
+  // const { userRole } = req.user;
+
+  // if (!userRole || userRole !== 'super_admin') {
+  //   return res.status(403).json({ message: "You don't have permissions to access this page" });
+  // }
+  const page = parseInt(req.query.page) || 1;
+  const limit = 10;
+
+  try {
+    const users = await UserModel.find()
+    .select('fullName email createdAt')
+      .lean();
+
+    if (!users) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+
+    const totalUsers = users.length;
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    const start = (page - 1) * limit;
+    const end = page * limit;
+
+    const paginatedUsers = users.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(start, end)
+
+    res.status(200).json({
+      users: paginatedUsers,
+      totalPages,
+    });
+
+  } catch (error) {
+    console.error('Fetch users failed:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -503,43 +649,102 @@ export const userGroups = async (req, res) => {
   }
 };
 
-export const manageSearchedUsers = async (req, res) => {
+export const manageGetUserGroups = async (req, res) => {
+  const { id } = req.params;
+  // const { userRole } = req.user;
+
+  // if (!userRole || userRole !== 'super_admin') {
+  //   return res.status(403).json({ message: "You don't have permissions to access this page" });
+  // }
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid user ID" });
+  }
+
+  try {
+    const user = await UserModel.findById(id).populate('groups.group');
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    // Extract group details from populated groups
+    const groupData = user.groups.map(g => ({
+      _id: g.group._id,
+      name: g.group.name,
+      status: g.status,
+    }));
+
+    res.status(200).json({ groups: groupData });
+  } catch (error) {
+    console.error('Error fetching user groups', error);
+    res.status(500).json({ message: "Error fetching your groups." });
+  }
+};
+
+export const manageSearchedMembers = async (req, res) => {
   const { currentGroupId } = req.user;
 
   if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
     return res.status(400).json({ message: "Invalid IDs in token" });
   }
+
   const {
     fullName,
     email,
-    permission,
+    memberNumber,
+    permissions,
     page = 1,
     limit = 10,
   } = req.query;
 
   try {
+    // Get group with members
     const group = await GroupModel.findById(currentGroupId).populate({
-      path: 'members.user',
-      select: '_id',
+      path: "members.user",
+      select: "_id fullName email phoneNumber",
     });
 
     if (!group) {
-      return res.status(404).json({ message: 'Group not found' });
+      return res.status(404).json({ message: "Group not found" });
     }
 
-    // Step 1: Filter member IDs by permission if provided
-    let memberIds = group.members
-      .filter(m => m.user && (!permission || m.permissions.includes(permission)))
-      .map(m => m.user._id);
+    // Parse permissions if provided
+    let selectedPermissions = [];
+    if (permissions) {
+      selectedPermissions = permissions.split(",").map((p) => p.trim());
+    }
 
-    if (!memberIds.length) {
+    // Step 1: Filter members in group by permission + memberNumber
+    let filteredMembers = group.members.filter((m) => {
+      if (!m.user) return false;
+
+      // Permission filter
+      if (selectedPermissions.length > 0) {
+        if (!m.permissions.some((p) => selectedPermissions.includes(p))) {
+          return false;
+        }
+      }
+
+      // MemberNumber filter
+      if (memberNumber?.trim()) {
+        const regex = new RegExp(memberNumber.trim(), "i");
+        if (!regex.test(m.memberNumber)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    if (!filteredMembers.length) {
       return res.status(200).json({ users: [], totalPages: 0 });
     }
 
-    // Step 2: Build search query
-    const query = {
-      _id: { $in: memberIds },
-    };
+    const memberIds = filteredMembers.map((m) => m.user._id);
+
+    // Step 2: Build user query
+    const query = { _id: { $in: memberIds } };
 
     if (fullName?.trim()) {
       query.fullName = { $regex: fullName.trim(), $options: "i" };
@@ -553,22 +758,32 @@ export const manageSearchedUsers = async (req, res) => {
     const total = await UserModel.countDocuments(query);
 
     const users = await UserModel.find(query)
-      .select('_id fullName email phoneNumber')
+      .select("_id fullName email phoneNumber")
       .skip((page - 1) * limit)
       .limit(Number(limit));
 
-    res.status(200).json({
-      users,
-      totalPages: Math.ceil(total / limit),
+    // Step 4: Attach memberNumber to returned users
+    const membersWithMemberNumbers = users.map((user) => {
+      const memberInfo = filteredMembers.find(
+        (m) => m.user._id.toString() === user._id.toString()
+      );
+      return {
+        ...user.toObject(),
+        memberNumber: memberInfo?.memberNumber || null,
+      };
     });
 
+    res.status(200).json({
+      members: membersWithMemberNumbers,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (error) {
     console.error("Search failed:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-export const manageUsers = async (req, res) => {
+export const manageMembers = async (req, res) => {
   const { currentGroupId } = req.user;
 
   if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
@@ -581,8 +796,8 @@ export const manageUsers = async (req, res) => {
     const group = await GroupModel.findById(currentGroupId)
       .populate({
         path: 'members.user',
-        select: '_id fullName email phoneNumber role',
-      });
+        select: 'fullName',
+      }).lean();
 
     if (!group) {
       return res.status(404).json({ message: 'Group not found' });
@@ -594,19 +809,18 @@ export const manageUsers = async (req, res) => {
     const start = (page - 1) * limit;
     const end = page * limit;
 
-    const paginatedMembers = group.members.slice(start, end).map((member) => {
+    const paginatedMembers = group.members.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(start, end).map((member) => {
       const user = member.user;
       return {
         _id: user._id,
         fullName: user.fullName,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        role: user.role,
+        memberNumber: member.memberNumber
       };
     });
 
     res.status(200).json({
-      users: paginatedMembers,
+      members: paginatedMembers,
+      permissions,
       totalPages,
     });
 
@@ -689,10 +903,10 @@ export const fetchGlobalNotificationsStatus = async (req, res) => {
     // Get notificationsEnabled status for current user
     const user = await UserModel.findById(userId).lean();
     if (!user) {
-      return res.status(404).json({ message: 'User not found'});
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    return res.status(200).json({globalNotificationsStatus: user.globalNotificationsEnabled});
+    return res.status(200).json({ globalNotificationsStatus: user.globalNotificationsEnabled });
 
   } catch (error) {
     console.error("Fetch Global Notifications Status Error:", error);

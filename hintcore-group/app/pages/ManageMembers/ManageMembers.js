@@ -15,50 +15,48 @@ import privateAxios from "../../utils/axios/privateAxios";
 import { Ionicons } from '@expo/vector-icons';
 import Footer from "../../components/Footer/Footer";
 
-const ManageUsers = ({ navigation }) => {
-
-
+const ManageMembers = ({ navigation }) => {
     const { colors } = useSelector((state) => state.colors);
 
     const [searchParams, setSearchParams] = useState({
         email: "",
         fullName: "",
+        memberNumber: "",
         permissions: [],
     });
     const [searchOptions, setSearchOptions] = useState(false);
-    const [users, setUsers] = useState([]);
-    const [selectedUsers, setSelectedUsers] = useState([]);
+    const [members, setMembers] = useState([]);
+    const [selectedMembers, setSelectedMembers] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [searchMode, setSearchMode] = useState(false);
     const [permissions, setPermissions] = useState([]);
-    const [initialLoaded, setInitialLoaded] = useState(false)
+    const [initialLoaded, setInitialLoaded] = useState(false);
     const [loading, setLoading] = useState(false);
     const [partialLoading, setPartialLoading] = useState(false);
     const [loadingInfo, setLoadingInfo] = useState("");
 
-    const fetchSetUsers = async (pageNumber) => {
+    const fetchSetMembers = async (pageNumber) => {
         try {
             setLoading(true);
-            const response = await privateAxios.get(`/private/manage-users?page=${pageNumber}`);
+            const response = await privateAxios.get(`/private/manage-members?page=${pageNumber}`);
             setInitialLoaded(true);
-            setUsers(response.data.users);
+            setMembers(response.data.members);
             setPermissions(response.data.permissions);
             setTotalPages(response.data.totalPages);
             setCurrentPage(pageNumber);
         } catch (err) {
-            Alert.alert("Error", "Error fetching users.");
-            setUsers([]);
+            Alert.alert("Error", "Error fetching members.");
+            setMembers([]);
         } finally {
             setLoading(false);
         }
     };
 
-    // Build query string with permissions array joined by commas
-    const fetchSetSearchedUsers = async (pageNumber) => {
+    const fetchSetSearchedMembers = async (pageNumber) => {
         try {
             setPartialLoading(true);
-            setLoadingInfo("Searching for Users...");
+            setLoadingInfo("Searching for Member...");
 
             const queryObj = {
                 ...searchParams,
@@ -70,22 +68,21 @@ const ManageUsers = ({ navigation }) => {
             }
 
             const query = new URLSearchParams(queryObj);
-            setUsers([]);
-            const response = await privateAxios.get(`/private/manage-searched-users?${query.toString()}`);
+            setMembers([]);
+            const response = await privateAxios.get(`/private/manage-searched-members?${query.toString()}`);
 
-            setUsers(response.data.users);
+            setMembers(response.data.members);
             setTotalPages(response.data.totalPages);
             setCurrentPage(pageNumber);
         } catch (err) {
             Alert.alert("Error", "Error fetching search results.");
-            setUsers([]);
+            setMembers([]);
         } finally {
             setPartialLoading(false);
             setLoadingInfo();
         }
     };
 
-    // Toggle checkbox for permissions
     const handlePermissionToggle = (perm) => {
         setSearchParams((prev) => {
             const alreadySelected = prev.permissions.includes(perm);
@@ -100,34 +97,34 @@ const ManageUsers = ({ navigation }) => {
 
     const handleSearch = () => {
         setSearchMode(true);
-        fetchSetSearchedUsers(1);
+        fetchSetSearchedMembers(1);
     };
 
     const handleCheckbox = (id) => {
-        setSelectedUsers((prev) =>
-            prev.includes(id) ? prev.filter((uid) => uid !== id) : [...prev, id]
+        setSelectedMembers((prev) =>
+            prev.includes(id) ? prev.filter((mid) => mid !== id) : [...prev, id]
         );
     };
 
-    const confirmDeleteSelectedUsers = () => {
-        if (!selectedUsers.length) return;
+    const confirmRemoveSelectedMembers = () => {
+        if (!selectedMembers.length) return;
         Alert.alert(
-            "Confirm Delete",
-            `Delete ${selectedUsers.length} selected user${selectedUsers.length > 1 ? `s` : ''}?`,
+            "Confirm Remove",
+            `Remove ${selectedMembers.length} selected member${selectedMembers.length > 1 ? "s" : ""}?`,
             [
                 { text: "Cancel", style: "cancel" },
                 {
-                    text: "Delete",
+                    text: "Remove",
                     style: "destructive",
                     onPress: async () => {
                         try {
                             setPartialLoading(true);
-                            setLoadingInfo(`Removing ${selectedUsers.length} user${selectedUsers.length > 1 ? "s" : ""}...`);
-                            await privateAxios.post("/private/manage-remove-users", { ids: selectedUsers });
-                            setSelectedUsers([]);
-                            searchMode ? fetchSetSearchedUsers(currentPage) : fetchSetUsers(currentPage);
+                            setLoadingInfo(`Removing ${selectedMembers.length} member${selectedMembers.length > 1 ? "s" : ""}...`);
+                            await privateAxios.post("/private/manage-remove-members", { ids: selectedMembers });
+                            setSelectedMembers([]);
+                            searchMode ? fetchSetSearchedMembers(currentPage) : fetchSetMembers(currentPage);
                         } catch (error) {
-                            Alert.alert("Error", "Failed to delete selected users.");
+                            Alert.alert("Error", "Failed to remove selected members.");
                         } finally {
                             setPartialLoading(false);
                             setLoadingInfo("");
@@ -138,20 +135,20 @@ const ManageUsers = ({ navigation }) => {
         );
     };
 
-    const confirmDeleteSingleUser = (userId) => {
-        Alert.alert("Confirm Delete", "Delete this user?", [
+    const confirmRemoveSingleMember = (memberId) => {
+        Alert.alert("Confirm Remove", "Remove this member?", [
             { text: "Cancel", style: "cancel" },
             {
-                text: "Delete",
+                text: "Remove",
                 style: "destructive",
                 onPress: async () => {
                     try {
                         setPartialLoading(true);
-                        setLoadingInfo("Removing User...");
-                        await privateAxios.post(`/private/manage-remove-user/${userId}`);
-                        searchMode ? fetchSetSearchedUsers(currentPage) : fetchSetUsers(currentPage);
+                        setLoadingInfo("Removing Member...");
+                        await privateAxios.post(`/private/manage-remove-member/${memberId}`);
+                        searchMode ? fetchSetSearchedMembers(currentPage) : fetchSetMembers(currentPage);
                     } catch (error) {
-                        Alert.alert("Error", "Failed to delete user.");
+                        Alert.alert("Error", "Failed to remove member.");
                     } finally {
                         setPartialLoading(false);
                         setLoadingInfo("");
@@ -164,69 +161,73 @@ const ManageUsers = ({ navigation }) => {
     const handleNextPage = () => {
         if (currentPage < totalPages) {
             const nextPage = currentPage + 1;
-            searchMode ? fetchSetSearchedUsers(nextPage) : fetchSetUsers(nextPage);
+            searchMode ? fetchSetSearchedMembers(nextPage) : fetchSetMembers(nextPage);
         }
     };
 
     const handlePreviousPage = () => {
         if (currentPage > 1) {
             const prevPage = currentPage - 1;
-            searchMode ? fetchSetSearchedUsers(prevPage) : fetchSetUsers(prevPage);
+            searchMode ? fetchSetSearchedMembers(prevPage) : fetchSetMembers(prevPage);
         }
     };
 
     const formatPermissionLabel = (perm) => {
         return perm
-            .split('_')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
+            .split("_")
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(" ");
     };
 
-
     useEffect(() => {
-        fetchSetUsers(1);
+        fetchSetMembers(1);
     }, []);
 
     return (
         <View style={{ flex: 1 }}>
             <View style={[stylesConfig.SETTINGS_STYLES.container, { backgroundColor: colors.background }]}>
-                {/* Header */}
-                <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text }]}>Manage Users</Text>
+                <Text style={[stylesConfig.SETTINGS_STYLES.header, { color: colors.text }]}>
+                    Manage Members
+                </Text>
 
-                {/* Toggle search options */}
-                {initialLoaded &&
+                {initialLoaded && (
                     <Pressable
                         style={[styles.button, { backgroundColor: colors.primary }]}
                         onPress={() => setSearchOptions(!searchOptions)}
                     >
                         <Text style={{ color: colors.mainButtonText }}>
-                            {searchOptions ? "Hide Filter" : "Filter Users"}
+                            {searchOptions ? "Hide Filter" : "Filter Members"}
                         </Text>
-                    </Pressable>}
+                    </Pressable>
+                )}
 
-                {/* Search fields */}
                 {searchOptions && (
                     <View style={{ marginVertical: 10 }}>
                         <TextInput
                             style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text }]}
-                            placeholder="User's name"
+                            placeholder="Member's name"
                             placeholderTextColor={colors.placeholder}
                             value={searchParams.fullName}
                             onChangeText={(text) => setSearchParams({ ...searchParams, fullName: text })}
                         />
-                        
                         <TextInput
                             style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text }]}
-                            placeholder="User's email"
+                            placeholder="Member's ID"
+                            placeholderTextColor={colors.placeholder}
+                            value={searchParams.memberNumber}
+                            onChangeText={(text) => setSearchParams({ ...searchParams, memberNumber: text })}
+                        />
+                        <TextInput
+                            style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text }]}
+                            placeholder="Member's email"
                             placeholderTextColor={colors.placeholder}
                             value={searchParams.email}
                             onChangeText={(text) => setSearchParams({ ...searchParams, email: text })}
                         />
 
-                        {/* Permissions Checkboxes */}
                         <View style={{ marginBottom: 10 }}>
                             <Text style={{ color: colors.text, marginBottom: 5 }}>Permissions:</Text>
-                            {permissions.length > 0 ? (
+                            {permissions.length > 0 &&
                                 permissions.map((perm) => (
                                     <Pressable
                                         key={perm}
@@ -245,104 +246,109 @@ const ManageUsers = ({ navigation }) => {
                                             ]}
                                         />
                                         <Text style={{ color: colors.text, marginLeft: 8 }}>
-                                            {formatPermissionLabel(perm)} {/* 👈 Display nicely */}
+                                            {formatPermissionLabel(perm)}
                                         </Text>
                                     </Pressable>
-                                ))
-                            ) : null}
-
+                                ))}
                         </View>
 
-                        {/* Search button */}
                         <Pressable
-                            style={[stylesConfig.BUTTON, { backgroundColor: loading ? colors.border : colors.primary, marginTop: 10, flexDirection: 'row', columnGap: 10, justifyContent: 'center' }]}
-                            onPress={() => { handleSearch(); setSearchOptions(false); }}
+                            style={[
+                                stylesConfig.BUTTON,
+                                {
+                                    backgroundColor: loading ? colors.border : colors.primary,
+                                    marginTop: 10,
+                                    flexDirection: "row",
+                                    columnGap: 10,
+                                    justifyContent: "center",
+                                },
+                            ]}
+                            onPress={() => {
+                                handleSearch();
+                                setSearchOptions(false);
+                            }}
                             disabled={loading}
                         >
-                            <Text style={{ color: colors.mainButtonText }}>{loading ? 'Searching...' : 'Search'}</Text>
+                            <Text style={{ color: colors.mainButtonText }}>
+                                {loading ? "Searching..." : "Search"}
+                            </Text>
                         </Pressable>
                     </View>
                 )}
 
-                {/* Delete selected button */}
-                {users.length > 0 &&
+                {members.length > 0 && (
                     <Pressable
                         style={[
                             styles.button,
-                            { backgroundColor: selectedUsers.length ? "#dc3545" : colors.border },
+                            { backgroundColor: selectedMembers.length ? "#dc3545" : colors.border },
                         ]}
-                        onPress={confirmDeleteSelectedUsers}
-                        disabled={!selectedUsers.length}
+                        onPress={confirmRemoveSelectedMembers}
+                        disabled={!selectedMembers.length}
                     >
-                        <Text style={{ color: "#fff" }}>Delete Selected Users</Text>
-                    </Pressable>}
+                        <Text style={{ color: "#fff" }}>Remove Selected Members</Text>
+                    </Pressable>
+                )}
 
-                {/* Users list */}
-                {partialLoading ?
-                    <View style={{ flex: 1, marginBottom: 10, flexDirection: 'row', columnGap: 10, justifyContent: 'center', alignItems: 'center' }}>
+                {partialLoading ? (
+                    <View style={{ flex: 1, marginBottom: 10, flexDirection: "row", columnGap: 10, justifyContent: "center", alignItems: "center" }}>
                         <ActivityIndicator />
                         <Text style={{ color: colors.text }}>{loadingInfo}</Text>
-                    </View> :
-                    loading ? (
-                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                            <ActivityIndicator size="large" color={colors.primary} />
-                            <Text style={{ color: colors.text }}>Fetching Users...</Text>
-                        </View>
-                    ) : users.length > 0 ? (
-                        <FlatList
-                            data={users}
-                            keyExtractor={(item) => item._id}
-                            renderItem={({ item }) => (
+                    </View>
+                ) : loading ? (
+                    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                        <ActivityIndicator size="large" color={colors.primary} />
+                        <Text style={{ color: colors.text }}>Fetching members...</Text>
+                    </View>
+                ) : members.length > 0 ? (
+                    <FlatList
+                        data={members}
+                        keyExtractor={(item) => item._id}
+                        renderItem={({ item }) => (
+                            <View
+                                style={[
+                                    styles.memberCard,
+                                    { flex: 1, borderColor: colors.border, backgroundColor: colors.secondary },
+                                ]}
+                            >
                                 <Pressable
+                                    onPress={() => handleCheckbox(item._id)}
                                     style={[
-                                        styles.userCard,
-                                        { flex: 1, borderColor: colors.border, backgroundColor: colors.secondary },
+                                        styles.checkbox,
+                                        {
+                                            backgroundColor: selectedMembers.includes(item._id)
+                                                ? colors.primary
+                                                : colors.background,
+                                        },
                                     ]}
-                                    onPress={() => navigation.navigate("manage-profile", { id: item._id })}
-                                >
-                                    <Pressable
-                                        onPress={() => handleCheckbox(item._id)}
-                                        style={[
-                                            styles.checkbox,
-                                            {
-                                                backgroundColor: selectedUsers.includes(item._id)
-                                                    ? colors.primary
-                                                    : colors.background,
-                                            },
-                                        ]}
-                                    />
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ color: colors.text, fontWeight: "bold" }}>{item.fullName}</Text>
-                                        <Text style={{ color: colors.text, fontWeight: "bold" }}>{item.email}</Text>
-                                    </View>
-                                    <View style={{ flexDirection: "row" }}>
-                                        <Pressable
-                                            style={[styles.smallButton]}
-                                            onPress={() => navigation.navigate("manage-edit-profile", { id: item._id })}
-                                        >
-                                            <Ionicons name="create-outline" size={24} color="#007bff" />
-                                        </Pressable>
-                                        <Pressable
-                                            style={[styles.smallButton]}
-                                            onPress={() => confirmDeleteSingleUser(item._id)}
-                                        >
-                                            <Ionicons name="trash-outline" size={24} color="red" />
-                                        </Pressable>
-                                    </View>
+                                />
+                                <Pressable onPress={() => handleCheckbox(item._id)} style={{ flex: 1 }}>
+                                    <Text style={{ color: colors.text, fontWeight: "bold" }}>{item.fullName}</Text>
+                                    <Text style={{ color: colors.text, fontWeight: "bold" }}>{item.memberNumber}</Text>
                                 </Pressable>
-                            )}
-                        />
-                    ) :
-                        (<View style={{ backgroundColor: colors.background, flex: 1, alignItems: 'center', justifyContent: 'center', }}>
-                            <Text style={{ color: colors.text, marginTop: 10 }}>There are no users to display.</Text>
-                        </View>)
-                }
+                                <View style={{ flexDirection: "row" }}>
+                                    <Pressable
+                                        style={[styles.smallButton]}
+                                        onPress={() => confirmRemoveSingleMember(item._id)}
+                                    >
+                                        <Ionicons name="trash-outline" size={24} color="red" />
+                                    </Pressable>
+                                </View>
+                            </View>
+                        )}
+                    />
+                ) : (
+                    <View style={{ backgroundColor: colors.background, flex: 1, alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ color: colors.text, marginTop: 10 }}>There are no members to display.</Text>
+                    </View>
+                )}
 
-                {/* Pagination */}
-                {totalPages > 1 &&
+                {totalPages > 1 && (
                     <View style={styles.pagination}>
                         <Pressable
-                            style={[styles.pageButton, { backgroundColor: currentPage === 1 ? colors.border : colors.primary }]}
+                            style={[
+                                styles.pageButton,
+                                { backgroundColor: currentPage === 1 ? colors.border : colors.primary },
+                            ]}
                             onPress={handlePreviousPage}
                             disabled={currentPage === 1}
                         >
@@ -354,14 +360,20 @@ const ManageUsers = ({ navigation }) => {
                         <Pressable
                             style={[
                                 styles.pageButton,
-                                { backgroundColor: currentPage === totalPages ? colors.border : colors.primary, minWidth: 85, alignItems: 'center' },
+                                {
+                                    backgroundColor:
+                                        currentPage === totalPages ? colors.border : colors.primary,
+                                    minWidth: 85,
+                                    alignItems: "center",
+                                },
                             ]}
                             onPress={handleNextPage}
                             disabled={currentPage === totalPages}
                         >
                             <Text style={{ color: colors.mainButtonText }}>Next</Text>
                         </Pressable>
-                    </View>}
+                    </View>
+                )}
             </View>
             <Footer />
         </View>
@@ -385,7 +397,7 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         marginLeft: 6,
     },
-    userCard: {
+    memberCard: {
         flexDirection: "row",
         alignItems: "center",
         padding: 12,
@@ -412,4 +424,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default ManageUsers;
+export default ManageMembers;

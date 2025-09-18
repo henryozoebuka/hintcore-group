@@ -126,7 +126,7 @@ export const createGroup = async (req, res) => {
               user: newUser._id,
               memberNumber,
               status: "active",
-              permissions: ["admin", "manage_members", "manage_announcements", "manage_events"],
+              permissions: ["admin", "user", "manage_members", "manage_announcements", "manage_events", "manage_constitutions", "manage_expenses"],
             },
           ],
         },
@@ -169,7 +169,7 @@ export const createGroup = async (req, res) => {
     }
 
     return res.status(201).json({
-      message: "Group and account created successfully. Please verify your email with the OTP sent.",
+      message: `${groupName[0].toUpperCase() + groupName.slice(1)} and account created successfully. Please verify your email with the OTP sent.`,
       userId: newUser._id,
       groupId: newGroup._id,
       joinCode,
@@ -407,6 +407,36 @@ export const groupInformation = async (req, res) => {
   }
 };
 
+export const manageGroupInformation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid IDs in token" });
+    }
+
+    // Fetch group with selected fields, excluding members
+    const group = await GroupModel.findById(id)
+      .select("-members -groupPassword") // ⛔ exclude sensitive fields
+      .populate("createdBy", "fullName email") // Include only necessary user fields
+      .lean();
+
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    return res.status(200).json({
+      group,
+    });
+
+
+  } catch (error) {
+    console.error("Fetch Group Information Error:", error);
+    return res.status(500).json({
+      message: "Internal server error while fetching group information.",
+    });
+  }
+};
+
 export const manageGetGroupInformationUpdate = async (req, res) => {
   try {
     const currentGroupId = req.user.currentGroupId;
@@ -482,7 +512,7 @@ export const manageUpdateGroupInformation = async (req, res) => {
 
     await group.save();
 
-    return res.status(200).json({ message: 'Group updated successfully' });
+    return res.status(200).json({ message: `${name[0].toUpperCase() + name.slice(1)} updated successfully` });
   } catch (error) {
     console.error('Update group error:', error);
     return res.status(500).json({ message: 'Server error. Please try again later.' });
@@ -900,6 +930,31 @@ export const toggleGroupNotifications = async (req, res) => {
   } catch (error) {
     console.error('Error toggling group notifications:', error);
     return res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+export const manageResetGroupPassword = async (req, res) => {
+  try {
+    const { groupPassword } = req.body; // align with frontend
+    const { currentGroupId } = req.user;
+
+    if (!mongoose.Types.ObjectId.isValid(currentGroupId)) {
+      return res.status(400).json({ message: "Invalid group ID." });
+    }
+
+    const group = await GroupModel.findById(currentGroupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group does not exist." });
+    }
+
+    const hashedGroupPassword = await bcrypt.hash(groupPassword, 10);
+    group.groupPassword = hashedGroupPassword;
+    await group.save();
+
+    return res.status(200).json({ message: "Group password reset successful!" });
+  } catch (error) {
+    console.error("Error resetting group password:", error);
+    return res.status(500).json({ message: "Internal server error." });
   }
 };
 

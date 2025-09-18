@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import moment from "moment";
 import { useSelector } from "react-redux";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import privateAxios from "../../utils/axios/privateAxios";
 import stylesConfig from "../../styles/styles";
 import Notification from "../../components/Notification/Notification";
@@ -22,14 +21,17 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 const ManageConstitutions = ({ navigation }) => {
     const { colors } = useSelector((state) => state.colors);
     const [showDatePicker, setShowDatePicker] = useState(false);
-    const [selectedDate, setSelectedDate] = useState(null);
+    const [datePickerMode, setDatePickerMode] = useState(false);
+    const [startDate, setStartDate] = useState(null);
+    const [endDate, setEndDate] = useState(null);
     const [constitutions, setConstitutions] = useState([]);
     const [selectedConstitutions, setSelectedConstitutions] = useState([]);
     const [searchOptions, setSearchOptions] = useState(false);
     const [searchMode, setSearchMode] = useState(false);
-    const [searchParams, setSearchParams] = useState({ titleOrDescription: "", date: "" });
+    const [searchParams, setSearchParams] = useState({ titleOrDescription: "", startDate: "", endDate: "", published: "" });
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [initialLoaded, setInitialLoaded] = useState(false);
     const [loading, setLoading] = useState(false);
     const [notification, setNotification] = useState({ visible: false, type: "", message: "" });
 
@@ -37,6 +39,7 @@ const ManageConstitutions = ({ navigation }) => {
         try {
             setLoading(true);
             const response = await privateAxios.get(`/private/manage-constitutions?page=${pageNumber}`);
+            setInitialLoaded(true);
             setConstitutions(response.data.constitutions || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
@@ -70,9 +73,14 @@ const ManageConstitutions = ({ navigation }) => {
     const onChangeDate = (event, date) => {
         setShowDatePicker(false);
         if (date) {
-            const formattedDate = date.toISOString().split("T")[0]; // YYYY-MM-DD
-            setSelectedDate(formattedDate);
-            setSearchParams({ ...searchParams, date: formattedDate });
+            const formattedDate = date.toISOString().split("T")[0];
+            if (datePickerMode === "start") {
+                setStartDate(formattedDate);
+                setSearchParams(prev => ({ ...prev, startDate: formattedDate }));
+            } else if (datePickerMode === "end") {
+                setEndDate(formattedDate);
+                setSearchParams(prev => ({ ...prev, endDate: formattedDate }));
+            }
         }
     };
 
@@ -89,7 +97,7 @@ const ManageConstitutions = ({ navigation }) => {
 
     const confirmDeleteSelected = () => {
         if (!selectedConstitutions.length) return;
-        Alert.alert("Delete", `Delete ${selectedConstitutions.length} selected constitution(s)?`, [
+        Alert.alert("Delete", `Delete ${selectedConstitutions.length} selected Constitution(s)?`, [
             { text: "Cancel", style: "cancel" },
             {
                 text: "Delete",
@@ -108,7 +116,7 @@ const ManageConstitutions = ({ navigation }) => {
     };
 
     const confirmDeleteSingle = (id) => {
-        Alert.alert("Delete", "Delete this constitution?", [
+        Alert.alert("Delete", "Delete this constitutions?", [
             { text: "Cancel", style: "cancel" },
             {
                 text: "Delete",
@@ -118,7 +126,7 @@ const ManageConstitutions = ({ navigation }) => {
                         await privateAxios.delete(`/private/delete-constitution/${id}`);
                         searchMode ? fetchSearchedConstitutions(currentPage) : fetchConstitutions(currentPage);
                     } catch {
-                        showError("Failed to delete constitution.");
+                        showError("Failed to delete Constitutions.");
                     }
                 },
             },
@@ -167,19 +175,19 @@ const ManageConstitutions = ({ navigation }) => {
                     style={[stylesConfig.BUTTON, { backgroundColor: colors.primary }]}
                     onPress={() => navigation.navigate("create-constitution")}
                 >
-                    <Text style={{ color: colors.mainButtonText }}>Create Constitutions</Text>
+                    <Text style={{ color: colors.mainButtonText }}>Create Constitution</Text>
                 </Pressable>
 
                 {/* Search Options */}
-                {constitutions.length > 0 && 
-                <Pressable
-                    style={[stylesConfig.BUTTON, { backgroundColor: colors.primary }]}
-                    onPress={() => setSearchOptions(!searchOptions)}
-                >
-                    <Text style={{ color: colors.mainButtonText }}>
-                        {searchOptions ? "Hide Search Options" : "Show Search Options"}
-                    </Text>
-                </Pressable>}
+                {initialLoaded &&
+                    <Pressable
+                        style={[stylesConfig.BUTTON, { backgroundColor: colors.primary }]}
+                        onPress={() => setSearchOptions(!searchOptions)}
+                    >
+                        <Text style={{ color: colors.mainButtonText }}>
+                            {searchOptions ? "Hide Search Options" : "Filter Constitutions"}
+                        </Text>
+                    </Pressable>}
 
                 {searchOptions && (
                     <View style={{ marginVertical: 10 }}>
@@ -203,45 +211,136 @@ const ManageConstitutions = ({ navigation }) => {
                             }
                         />
 
-                        {/* 📅 Date Picker + ❌ Clear Date in a row */}
-                        <View style={{ flexDirection: "row", marginTop: 10, justifyContent: 'center' }}>
-                            {/* Date Field */}
-                            <Pressable style={[stylesConfig.INPUT, { flex: 1, backgroundColor: colors.inputBackground, borderColor: colors.inputBackground, borderWidth: 1, justifyContent: "center", paddingVertical: 12, },]} onPress={() => setShowDatePicker(true)}>
-                                <Text style={{ color: selectedDate ? colors.text : colors.placeholder }}> {selectedDate || "Select Date"}</Text>
-                            </Pressable>
-
-                            {/* Clear Button - only shows if a date is selected */}
-                            {selectedDate && (
-                                <Pressable onPress={() => { setSelectedDate(null); setSearchParams({ ...searchParams, date: "" }); }} style={{ marginLeft: 10, paddingVertical: 12, paddingHorizontal: 12, backgroundColor: colors.border, borderRadius: 6, marginBottom: 16 }}>
-                                    <Text style={{ color: colors.text }}>Clear</Text>
+                        {/* Published Status */}
+                        <View style={{ marginTop: 10 }}>
+                            <Text style={{ color: colors.text, fontWeight: "bold", marginBottom: 5 }}>
+                                Published Status
+                            </Text>
+                            {["", "true", "false"].map((val) => (
+                                <Pressable
+                                    key={val}
+                                    onPress={() =>
+                                        setSearchParams((prev) => ({ ...prev, published: val }))
+                                    }
+                                    style={{ flexDirection: "row", alignItems: "center", marginBottom: 5 }}
+                                >
+                                    <View
+                                        style={{
+                                            width: 20,
+                                            height: 20,
+                                            borderWidth: 1,
+                                            borderColor: colors.border,
+                                            borderRadius: 5,
+                                            backgroundColor: searchParams.published === val
+                                                ? colors.primary
+                                                : "transparent",
+                                            marginRight: 5,
+                                        }}
+                                    />
+                                    <Text style={{ color: colors.text }}>
+                                        {val === ""
+                                            ? "All"
+                                            : val === "true"
+                                                ? "Published"
+                                                : "Unpublished"}
+                                    </Text>
                                 </Pressable>
-                            )}
+                            ))}
                         </View>
 
                         {/* DateTimePicker Component */}
-                        {showDatePicker && (
-                            <DateTimePicker
-                                value={selectedDate ? new Date(selectedDate) : new Date()}
-                                mode="date"
-                                display="default"
-                                onChange={onChangeDate}
-                            />
-                        )}
+                        <View>
+                            <Text style={{ fontWeight: 'bold', color: colors.text }}>Date Created</Text>
+                            {/* 📅 Date Range */}
+                            <View style={{ flexDirection: "row", marginTop: 10, columnGap: 10, alignItems: "center" }}>
+                                {/* Start Date */}
+                                <Pressable
+                                    style={{
+                                        flex: 1,
+                                        backgroundColor: colors.inputBackground,
+                                        borderColor: colors.inputBackground,
+                                        borderWidth: 1,
+                                        borderRadius: 10,
+                                        justifyContent: "center",
+                                        paddingVertical: 12,
+                                    }}
+                                    onPress={() => { setDatePickerMode("start"); setShowDatePicker(true); }}
+                                >
+                                    <Text style={{ color: startDate ? colors.text : colors.placeholder, textAlign: 'center' }}>
+                                        {startDate || "Start Date"}
+                                    </Text>
+                                </Pressable>
+
+                                {/* End Date */}
+                                <Pressable
+                                    style={{
+                                        flex: 1,
+                                        backgroundColor: colors.inputBackground,
+                                        borderColor: colors.inputBackground,
+                                        borderWidth: 1,
+                                        justifyContent: "center",
+                                        paddingVertical: 12,
+                                        borderRadius: 10,
+                                    }}
+                                    onPress={() => { setDatePickerMode("end"); setShowDatePicker(true); }}
+                                >
+                                    <Text style={{ color: endDate ? colors.text : colors.placeholder, textAlign: 'center' }}>
+                                        {endDate || "End Date"}
+                                    </Text>
+                                </Pressable>
+
+                                {/* Clear */}
+                                {(startDate || endDate) && (
+                                    <Pressable
+                                        onPress={() => {
+                                            setStartDate(null);
+                                            setEndDate(null);
+                                            setSearchParams(prev => ({ ...prev, startDate: "", endDate: "" }));
+                                        }}
+                                        style={{
+                                            paddingVertical: 12,
+                                            paddingHorizontal: 12,
+                                            backgroundColor: colors.border,
+                                            borderRadius: 6,
+                                            alignSelf: "center",
+                                        }}
+                                    >
+                                        <Text style={{ color: colors.text }}>Clear</Text>
+                                    </Pressable>
+                                )}
+                            </View>
+
+                            {/* Date Picker Component */}
+                            {showDatePicker && (
+                                <DateTimePicker
+                                    value={
+                                        (datePickerMode === "start" && startDate
+                                            ? new Date(startDate)
+                                            : datePickerMode === "end" && endDate
+                                                ? new Date(endDate)
+                                                : new Date())
+                                    }
+                                    mode="date"
+                                    display="default"
+                                    onChange={onChangeDate}
+                                />
+                            )}
+
+                        </View>
 
                         {/* 🔍 Search Button */}
                         <Pressable
-                            style={[stylesConfig.BUTTON, { backgroundColor: colors.primary, marginTop: 10, flexDirection: 'row', columnGap: 10, justifyContent: 'center' }]}
-                            onPress={handleSearch}
+                            style={[stylesConfig.BUTTON, { backgroundColor: loading ? colors.border : colors.primary, marginTop: 10, flexDirection: 'row', columnGap: 10, justifyContent: 'center' }]}
+                            onPress={() => {handleSearch(); setSearchOptions(false);}}
+                            disabled={loading}
                         >
-                            {loading && <ActivityIndicator color={colors.mainButtonText} />}
                             <Text style={{ color: colors.mainButtonText }}>{loading ? 'Searching...' : 'Search'}</Text>
                         </Pressable>
                     </View>
                 )}
 
                 {/* Delete Selected Button */}
-                {constitutions.length > 0 && 
-                <Pressable
+                {constitutions.length > 0 && <Pressable
                     style={[
                         stylesConfig.BUTTON,
                         { backgroundColor: selectedConstitutions.length ? "#dc3545" : colors.border },
@@ -307,14 +406,11 @@ const ManageConstitutions = ({ navigation }) => {
                                 </View>
                             </Pressable>
                         )}
-                    />
-
-                ) :
+                    />) :
                     <View style={{ backgroundColor: colors.background, flex: 1, alignItems: 'center', justifyContent: 'center', }}>
                         <Text style={{ color: colors.text, marginTop: 10 }}>There are no constitutions to display.</Text>
                     </View>
                 }
-
                 {/* Pagination */}
                 {totalPages > 1 &&
                     <View style={stylesConfig.PAGINATION}>

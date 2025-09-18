@@ -47,6 +47,13 @@ const SETTINGS_STYLES = {
   },
 };
 
+const MODAL_OVERLAY = {
+  flex: 1,
+  justifyContent: "center",
+  alignItems: "center",
+}
+
+
 const BUTTON = {
   padding: 8,
   borderRadius: 8,
@@ -157,6 +164,7 @@ export default {
   FOOTER_STYLES,
   BUTTON,
   SMALL_BUTTON,
+  MODAL_OVERLAY,
   INPUT,
   CARD,
   CHECKBOX,

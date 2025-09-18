@@ -76,6 +76,9 @@ const ManagementDashboard = ({ navigation }) => {
           <Pressable onPress={() => navigation.navigate('manage-expenses')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
             <Text style={{ fontSize: 18, color: colors.text }}>Manage Expenses</Text>
           </Pressable>
+          <Pressable onPress={() => navigation.navigate('manage-members')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
+            <Text style={{ fontSize: 18, color: colors.text }}>Manage Members</Text>
+          </Pressable>
           <Pressable onPress={() => navigation.navigate('manage-users')} style={{ padding: 18, marginBottom: 14, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }} >
             <Text style={{ fontSize: 18, color: colors.text }}>Manage Users</Text>
           </Pressable>

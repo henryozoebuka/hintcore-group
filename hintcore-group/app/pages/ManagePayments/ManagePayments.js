@@ -28,9 +28,10 @@ const ManagePayments = ({ navigation }) => {
     const [selectedPayments, setSelectedPayments] = useState([]);
     const [searchOptions, setSearchOptions] = useState(false);
     const [searchMode, setSearchMode] = useState(false);
-    const [searchParams, setSearchParams] = useState({ titleOrDescription: "", published: "", startDate: "", endDate: "", types: [] });
+    const [searchParams, setSearchParams] = useState({ titleOrDescription: "", minAmount: "", maxAmount: "", published: "", startDate: "", endDate: "", types: [] });
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [initialLoaded, setInitialLoaded] = useState(false);
     const [loading, setLoading] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
     const [notification, setNotification] = useState({ visible: false, type: "", message: "" });
@@ -39,6 +40,7 @@ const ManagePayments = ({ navigation }) => {
         try {
             setLoading(true);
             const response = await privateAxios.get(`/private/manage-payments?page=${pageNumber}`);
+            setInitialLoaded(true);
             setPayments(response.data.payments || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
@@ -56,18 +58,31 @@ const ManagePayments = ({ navigation }) => {
         try {
             setLoading(true);
 
-            const query = new URLSearchParams({
+            const sanitizedParams = {
                 ...searchParams,
-                types: searchParams.types.join(','),
-                page: pageNumber,
-            });
+                minAmount: searchParams.minAmount.replace(/,/g, ''),
+                maxAmount: searchParams.maxAmount.replace(/,/g, ''),
+                types: searchParams.types.join(","),
+                page: pageNumber
+            };
+
+            // Remove empty keys
+            Object.keys(sanitizedParams).forEach(
+                key => (sanitizedParams[key] === "" || sanitizedParams[key] == null) && delete sanitizedParams[key]
+            );
+
+            const query = new URLSearchParams(sanitizedParams).toString();
 
             const response = await privateAxios.get(`/private/manage-search-payments?${query}`);
             setPayments(response.data.payments || []);
             setTotalPages(response.data.totalPages || 1);
             setCurrentPage(pageNumber);
         } catch (error) {
-            showError("Search failed.");
+            if (error?.response?.data?.message) {
+                showError(error.response.data.message);
+            } else {
+                showError("Search failed.");
+            }
         } finally {
             setLoading(false);
         }
@@ -191,6 +206,12 @@ const ManagePayments = ({ navigation }) => {
         return title.length > 25 ? title.slice(0, 25) + "..." : title;
     };
 
+    const formatWithCommas = (value) => {
+        const numericValue = value.replace(/,/g, ''); // remove existing commas
+        if (!numericValue) return '';
+        return parseFloat(numericValue).toLocaleString('en-US');
+    };
+
     useEffect(() => {
         fetchPayments(1);
     }, []);
@@ -212,7 +233,7 @@ const ManagePayments = ({ navigation }) => {
                 </Pressable>
 
                 {/* Search Options */}
-                {payments.length > 0 &&
+                {initialLoaded &&
                     <Pressable
                         style={[stylesConfig.BUTTON, { backgroundColor: colors.primary }]}
                         onPress={() => setSearchOptions(!searchOptions)}
@@ -270,6 +291,38 @@ const ManagePayments = ({ navigation }) => {
                                     </Pressable>
                                 ))}
                             </View>
+                        </View>
+
+                        {/* Amount Range */}
+                        <View style={{ flexDirection: "row", marginTop: 10, columnGap: 10 }}>
+                            <TextInput
+                                style={[
+                                    stylesConfig.INPUT,
+                                    { flex: 1, backgroundColor: colors.inputBackground, color: colors.text },
+                                ]}
+                                placeholder="Min Amount"
+                                placeholderTextColor={colors.placeholder}
+                                keyboardType="numeric"
+                                value={searchParams.minAmount}
+                                onChangeText={(text) => {
+                                    const formatted = formatWithCommas(text);
+                                    setSearchParams((prev) => ({ ...prev, minAmount: formatted }));
+                                }}
+                            />
+                            <TextInput
+                                style={[
+                                    stylesConfig.INPUT,
+                                    { flex: 1, backgroundColor: colors.inputBackground, color: colors.text },
+                                ]}
+                                placeholder="Max Amount"
+                                placeholderTextColor={colors.placeholder}
+                                keyboardType="numeric"
+                                value={searchParams.maxAmount}
+                                onChangeText={(text) => {
+                                    const formatted = formatWithCommas(text);
+                                    setSearchParams((prev) => ({ ...prev, maxAmount: formatted }));
+                                }}
+                            />
                         </View>
 
                         {/* Published Status */}
@@ -393,7 +446,7 @@ const ManagePayments = ({ navigation }) => {
                         <Pressable
                             style={[stylesConfig.BUTTON, { backgroundColor: loading ? colors.border : colors.primary, marginTop: 10, flexDirection: 'row', columnGap: 10, justifyContent: 'center' }]}
                             disabled={loading || actionLoading}
-                            onPress={() => {handleSearch(); setSearchOptions(false); }}
+                            onPress={() => { handleSearch(); setSearchOptions(false); }}
                         >
                             <Text style={{ color: colors.mainButtonText }}>{loading ? 'Searching...' : 'Search'}</Text>
                         </Pressable>
