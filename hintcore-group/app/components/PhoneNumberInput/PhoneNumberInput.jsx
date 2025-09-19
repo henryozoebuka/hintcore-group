@@ -1,71 +1,84 @@
-import React, { useState, useRef, useEffect } from 'react';
-import PhoneInput from 'react-native-phone-number-input';
-import * as Localization from 'expo-localization';
-import { View } from 'react-native';
-import { useSelector } from 'react-redux';
+// import React, { useEffect, useState } from "react";
+// import { View } from "react-native";
+// import PhoneInput from "react-native-international-phone-number";
+// import * as Localization from "expo-localization";
+// import { useSelector } from "react-redux";
 
-const PhoneNumberPicker = ({ value, onChange }) => {
-  const { colors } = useSelector((state) => state.colors);
-  const phoneInputRef = useRef(null);
-  const [defaultCode, setDefaultCode] = useState('US');
+// const PhoneNumberPicker = ({ value, onChange }) => {
+//   const { colors } = useSelector((state) => state.colors);
+//   const [defaultCountry, setDefaultCountry] = useState("US");
 
-  useEffect(() => {
-    if (Localization.region) {
-      setDefaultCode(Localization.region);
-    }
-  }, []);
+//   // Ensure state value is always a string
+//   const safeValue = typeof value === "string" ? value : "";
 
-  const handleFormattedChange = (formatted) => {
-    if (!formatted) {
-      onChange('');
-      return;
-    }
+//   useEffect(() => {
+//     if (Localization.region) {
+//       setDefaultCountry(Localization.region);
+//     }
+//   }, []);
 
-    // Remove spaces, parentheses, dashes, etc.
-    let cleanNumber = formatted.replace(/[^\d+]/g, '');
+//   const handleChange = (phoneNumber) => {
+//     // phoneNumber may be undefined or something not a string
+//     if (typeof phoneNumber !== "string") {
+//       // optional: you could keep previous value if that makes sense
+//       onChange(safeValue);
+//       return;
+//     }
 
-    // Ensure it starts with "+"
-    if (!cleanNumber.startsWith('+')) {
-      cleanNumber = `+${cleanNumber}`;
-    }
+//     // Don’t force `+` until user enters something meaningful,
+//     // because entering “0” first might be part of local number input
+//     let newNumber = phoneNumber;
 
-    // Remove leading zeros after country code
-    cleanNumber = cleanNumber.replace(/^(\+\d+?)0+/, '$1');
+//     // If it doesn't start with + and user tries to enter +XX, maybe allow
+//     // But only force if explicit + or phoneNumber already has country prefix inferred
+//     if (newNumber && !newNumber.startsWith("+")) {
+//       // Optionally you might check if defaultCountry's dial code is known and prepend it
+//       // But for now just leave as is
+//       // newNumber = `+${newNumber}`;  // *remove* this forced + for now
+//     }
 
-    onChange(cleanNumber);
-  };
+//     // Clean up non-digit/non-plus characters
+//     newNumber = newNumber.replace(/[^\d+]/g, "");
 
-  return (
-    <View style={{ marginVertical: 10 }}>
-      <PhoneInput
-        ref={phoneInputRef}
-        defaultValue={value}
-        defaultCode={defaultCode}
-        layout="first"
-        onChangeFormattedText={handleFormattedChange}
-        containerStyle={{
-          backgroundColor: colors.inputBackground,
-          borderRadius: 8,
-          width: '100%',
-        }}
-        textContainerStyle={{
-          backgroundColor: colors.inputBackground,
-        }}
-        textInputStyle={{
-          color: colors.text,
-        }}
-        codeTextStyle={{
-          color: colors.text,
-        }}
-        countryPickerButtonStyle={{
-          backgroundColor: colors.inputBackground,
-        }}
-        withDarkTheme={colors.background === '#000'}
-        withShadow
-        autoFocus={false}
-      />
-    </View>
-  );
-};
+//     onChange(newNumber);
+//   };
 
-export default PhoneNumberPicker;
+//   const handleChangeSelectedCountry = (country) => {
+//     // optional: for example, switch to include country code, or adjust value
+//     // console.log("Selected country:", country);
+//   };
+
+//   return (
+//     <View style={{ marginVertical: 10 }}>
+//       <PhoneInput
+//         value={safeValue}
+//         defaultCountry={defaultCountry}
+//         onChangePhoneNumber={handleChange}
+//         onChangeSelectedCountry={handleChangeSelectedCountry}
+//         placeholder="Enter phone number"
+//         allowZeroAfterCallingCode={true}  // if library supports this prop
+//         // maybe there’s a prop for showing country code/dial code explicitly
+//         phoneInputStyles={{
+//           container: {
+//             backgroundColor: colors.inputBackground,
+//             borderRadius: 8,
+//             width: "100%",
+//             paddingHorizontal: 10,
+//           },
+//           input: {
+//             color: colors.text,
+//           },
+//           flagContainer: {
+//             backgroundColor: colors.inputBackground,
+//             borderRadius: 8,
+//           },
+//           callingCode: {
+//             color: colors.text,
+//           },
+//         }}
+//       />
+//     </View>
+//   );
+// };
+
+// export default PhoneNumberPicker;

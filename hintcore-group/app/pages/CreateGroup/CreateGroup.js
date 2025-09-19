@@ -17,7 +17,6 @@ import Notification from '../../components/Notification/Notification';
 import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog';
 import styles from '../../styles/styles';
 import publicAxios from '../../utils/axios/publicAxios';
-import PhoneNumberPicker from '../../components/PhoneNumberInput/PhoneNumberInput';
 
 const CreateGroup = () => {
   const navigation = useNavigation();
@@ -36,7 +35,6 @@ const CreateGroup = () => {
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
-
   const [confirmOTP, setConfirmOTP] = useState(routeParams.confirmOTP || false);
   const [userId, setUserId] = useState(routeParams.userId || '');
   const [loading, setLoading] = useState(false);
@@ -223,141 +221,163 @@ const CreateGroup = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <SafeAreaView>
-      <Notification visible={notification.visible} type={notification.type} message={notification.message} />
-      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20 }}>
-        <View style={{ alignItems: 'center', marginBottom: 20 }}>
-          <Image
-            source={HONTCOREGROUPLOGO}
-            style={{ width: 100, height: 100 }}
-            resizeMode="contain"
+        <Notification visible={notification.visible} type={notification.type} message={notification.message} />
+        <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20 }}>
+          <View style={{ alignItems: 'center', marginBottom: 20 }}>
+            <Image
+              source={HONTCOREGROUPLOGO}
+              style={{ width: 100, height: 100 }}
+              resizeMode="contain"
+            />
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: colors.text, marginTop: 10 }}>
+              Create Group
+            </Text>
+          </View>
+
+          {/* Group Fields */}
+          <TextInput
+            style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
+            placeholder="Group Name"
+            placeholderTextColor={colors.placeholder}
+            value={groupName}
+            onChangeText={setGroupName}
           />
-          <Text style={{ fontSize: 24, fontWeight: 'bold', color: colors.text, marginTop: 10 }}>
-            Create Group
-          </Text>
-        </View>
+          <TextInput
+            style={[styles.INPUT, { height: 80, backgroundColor: colors.inputBackground, color: colors.text }]}
+            placeholder="Group description (optional)"
+            placeholderTextColor={colors.placeholder}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+          />
+          <TextInput
+            style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
+            placeholder="Group Secret Code"
+            placeholderTextColor={colors.placeholder}
+            value={groupPassword}
+            secureTextEntry
+            onChangeText={setGroupPassword}
+          />
+          <TextInput
+            style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
+            placeholder="Confirm Group Secret Code"
+            placeholderTextColor={colors.placeholder}
+            value={confirmGroupPassword}
+            secureTextEntry
+            onChangeText={setConfirmGroupPassword}
+          />
 
-        {/* Group Fields */}
-        <TextInput
-          style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
-          placeholder="Group Name"
-          placeholderTextColor={colors.placeholder}
-          value={groupName}
-          onChangeText={setGroupName}
+          {/* User Fields */}
+          <TextInput
+            style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
+            placeholder="Your Full Name"
+            placeholderTextColor={colors.placeholder}
+            value={fullName}
+            onChangeText={setFullName}
+          />
+          <TextInput
+            style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
+            placeholder="Email"
+            placeholderTextColor={colors.placeholder}
+            value={email}
+            onChangeText={setEmail}
+          />
+
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 10 }}>
+            <View
+              style={{
+                backgroundColor: colors.inputBackground,
+                paddingHorizontal: 12,
+                paddingVertical: 14,
+                borderTopLeftRadius: 8,
+                borderBottomLeftRadius: 8,
+                
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontSize: 16 }}>+</Text>
+            </View>
+            <TextInput
+              style={{
+                  flex: 1,
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                  backgroundColor: colors.inputBackground,
+                  paddingVertical: 15,
+                borderTopRightRadius: 8,
+                borderBottomRightRadius: 8,
+                  color: colors.text,
+                }}
+              placeholder="Enter phone number"
+              placeholderTextColor={colors.placeholder}
+              keyboardType="number-pad"
+              value={phoneNumber}
+              onChangeText={(text) => {
+                // Only allow digits (no + or special characters)
+                const numeric = text.replace(/[^0-9]/g, '');
+                setPhoneNumber(numeric);
+              }}
+            />
+          </View>
+
+          <TextInput
+            style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
+            placeholder="User Password"
+            placeholderTextColor={colors.placeholder}
+            value={userPassword}
+            secureTextEntry
+            onChangeText={setUserPassword}
+          />
+          <TextInput
+            style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
+            placeholder="Confirm User Password"
+            placeholderTextColor={colors.placeholder}
+            value={confirmUserPassword}
+            secureTextEntry
+            onChangeText={setConfirmUserPassword}
+          />
+
+          {/* Create Button */}
+          <Pressable
+            style={{
+              backgroundColor: loading ? colors.border : colors.primary,
+              paddingVertical: 14,
+              borderRadius: 10,
+              alignItems: 'center',
+              marginTop: 20
+            }}
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            <Text style={{ color: colors.mainButtonText, fontWeight: 'bold', fontSize: 16 }}>
+              {loading ? 'Creating...' : 'Create Group'}
+            </Text>
+          </Pressable>
+
+          {/* Cancel Button */}
+          <Pressable
+            style={{
+              backgroundColor: colors.secondary,
+              paddingVertical: 12,
+              borderRadius: 10,
+              alignItems: 'center',
+              marginTop: 10
+            }}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={{ color: colors.buttonText, fontWeight: '600' }}>Cancel</Text>
+          </Pressable>
+        </ScrollView>
+
+
+        <ConfirmDialog
+          visible={confirmVisible}
+          title="Confirm Group Creation"
+          message="Are you sure you want to create this group and user?"
+          onConfirm={confirmCreateGroup}
+          onCancel={() => setConfirmVisible(false)}
         />
-        <TextInput
-          style={[styles.INPUT, { height: 80, backgroundColor: colors.inputBackground, color: colors.text }]}
-          placeholder="Group description (optional)"
-          placeholderTextColor={colors.placeholder}
-          value={description}
-          onChangeText={setDescription}
-          multiline
-        />
-        <TextInput
-          style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
-          placeholder="Group Secret Code"
-          placeholderTextColor={colors.placeholder}
-          value={groupPassword}
-          secureTextEntry
-          onChangeText={setGroupPassword}
-        />
-        <TextInput
-          style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
-          placeholder="Confirm Group Secret Code"
-          placeholderTextColor={colors.placeholder}
-          value={confirmGroupPassword}
-          secureTextEntry
-          onChangeText={setConfirmGroupPassword}
-        />
-
-        {/* User Fields */}
-        <TextInput
-          style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
-          placeholder="Your Full Name"
-          placeholderTextColor={colors.placeholder}
-          value={fullName}
-          onChangeText={setFullName}
-        />
-        <TextInput
-          style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
-          placeholder="Email"
-          placeholderTextColor={colors.placeholder}
-          value={email}
-          onChangeText={setEmail}
-        />
-
-        <PhoneNumberPicker
-          value={phoneNumber}
-          onChange={(num) => {
-            let cleanNumber = num.trim();
-
-            // Remove all spaces or non-digit characters
-            cleanNumber = cleanNumber.replace(/\D/g, '');
-
-            // Remove ALL leading zeros
-            cleanNumber = cleanNumber.replace(/^0+/, '');
-
-            // Pass clean number to backend as-is — PhoneNumberPicker already gives full country code
-            setPhoneNumber(cleanNumber);
-          }}
-        />
-
-        <TextInput
-          style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
-          placeholder="User Password"
-          placeholderTextColor={colors.placeholder}
-          value={userPassword}
-          secureTextEntry
-          onChangeText={setUserPassword}
-        />
-        <TextInput
-          style={[styles.INPUT, { backgroundColor: colors.inputBackground, color: colors.text }]}
-          placeholder="Confirm User Password"
-          placeholderTextColor={colors.placeholder}
-          value={confirmUserPassword}
-          secureTextEntry
-          onChangeText={setConfirmUserPassword}
-        />
-
-        {/* Create Button */}
-        <Pressable
-          style={{
-            backgroundColor: loading ? colors.border : colors.primary,
-            paddingVertical: 14,
-            borderRadius: 10,
-            alignItems: 'center',
-            marginTop: 20
-          }}
-          onPress={handleSubmit}
-          disabled={loading}
-        >
-          <Text style={{ color: colors.mainButtonText, fontWeight: 'bold', fontSize: 16 }}>
-            {loading ? 'Creating...' : 'Create Group'}
-          </Text>
-        </Pressable>
-
-        {/* Cancel Button */}
-        <Pressable
-          style={{
-            backgroundColor: colors.secondary,
-            paddingVertical: 12,
-            borderRadius: 10,
-            alignItems: 'center',
-            marginTop: 10
-          }}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={{ color: colors.buttonText, fontWeight: '600' }}>Cancel</Text>
-        </Pressable>
-      </ScrollView>
-
-
-      <ConfirmDialog
-        visible={confirmVisible}
-        title="Confirm Group Creation"
-        message="Are you sure you want to create this group and user?"
-        onConfirm={confirmCreateGroup}
-        onCancel={() => setConfirmVisible(false)}
-      />
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
