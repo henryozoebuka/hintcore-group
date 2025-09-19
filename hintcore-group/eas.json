@@ -8,11 +8,18 @@
       "developmentClient": true,
       "distribution": "internal"
     },
+    
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "REACT_NATIVE_SERVER_URL": "https://3i6dfd227h.execute-api.eu-north-1.amazonaws.com/prod"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "REACT_NATIVE_SERVER_URL": "https://3i6dfd227h.execute-api.eu-north-1.amazonaws.com/prod"
+      }
     }
   },
   "submit": {

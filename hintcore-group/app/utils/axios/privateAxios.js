@@ -1,9 +1,11 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { REACT_NATIVE_SERVER_URL } from '@env';
+// import { REACT_NATIVE_SERVER_URL } from '@env';
 import store from '../../redux/store';
 import { setIsLoggedIn } from '../../redux/slices/authSlice';
 import { navigate } from '../navigationRef';
+
+const REACT_NATIVE_SERVER_URL = process.env.REACT_NATIVE_SERVER_URL; // ✅ Works in EAS build
 
 const privateAxios = axios.create({
   baseURL: REACT_NATIVE_SERVER_URL,
